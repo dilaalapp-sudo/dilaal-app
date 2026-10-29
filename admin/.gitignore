@@ -1,0 +1,6 @@
+# DILAAL Admin Panel — standalone project ignores
+node_modules/
+dist/
+.env.local
+.env.*.local
+*.log

@@ -1,0 +1,6 @@
+{
+  "name": "DILAAL - Verified Marketplace",
+  "description": "Verified Marketplace for Houses, Land & Cars across Somalia and the global Diaspora community with sovereign Sharia escrow.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "DILAAL - Verified Marketplace",
+    "slug": "dilaal-marketplace",
+    "scheme": "dilaal-marketplace",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#003527"
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-notifications",
+        {
+          "color": "#003527"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "DILAAL attaches photos you choose to your buyer or broker conversation.",
+          "cameraPermission": "DILAAL uses the camera for live video inspections."
+        }
+      ],
+      "expo-document-picker"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dilaal.marketplace",
+      "infoPlist": {
+        "NSCameraUsageDescription": "DILAAL uses the camera for live video inspections with brokers.",
+        "NSMicrophoneUsageDescription": "DILAAL uses the microphone for voice calls and voice notes.",
+        "NSPhotoLibraryUsageDescription": "DILAAL attaches photos you choose to a conversation.",
+        "UIBackgroundModes": ["audio", "remote-notification"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#003527"
+      },
+      "package": "com.dilaal.marketplace",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "dilaal-sovereign-escrow"
+      }
+    }
+  }
+}

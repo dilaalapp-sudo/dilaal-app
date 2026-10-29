@@ -1,0 +1,254 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+.dark {
+  --color-surface: #0b1410;
+  --color-surface-dim: #060b08;
+  --color-surface-bright: #12201a;
+  --color-surface-container-lowest: #0e1914;
+  --color-surface-container-low: #13221c;
+  --color-surface-container: #182a23;
+  --color-surface-container-high: #1e332a;
+  --color-surface-container-highest: #263e34;
+  --color-on-surface: #e5f2eb;
+  --color-on-surface-variant: #a2b8ad;
+  --color-inverse-surface: #eef0ff;
+  --color-inverse-on-surface: #283044;
+  --color-outline: #81988e;
+  --color-outline-variant: #2d4238;
+  --color-surface-tint: #80bea6;
+  --color-primary: #80bea6;
+  --color-on-primary: #002117;
+  --color-primary-container: #004f38;
+  --color-on-primary-container: #b0f0d6;
+  --color-inverse-primary: #003527;
+  --color-background: #0b1410;
+  --color-on-background: #e5f2eb;
+  --color-surface-variant: #182a23;
+}
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --color-surface: #faf8ff;
+  --color-surface-dim: #d2d9f4;
+  --color-surface-bright: #faf8ff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f2f3ff;
+  --color-surface-container: #eaedff;
+  --color-surface-container-high: #e2e7ff;
+  --color-surface-container-highest: #dae2fd;
+  --color-on-surface: #131b2e;
+  --color-on-surface-variant: #404944;
+  --color-inverse-surface: #283044;
+  --color-inverse-on-surface: #eef0ff;
+  --color-outline: #707974;
+  --color-outline-variant: #bfc9c3;
+  --color-surface-tint: #2b6954;
+  --color-primary: #003527;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #064e3b;
+  --color-on-primary-container: #80bea6;
+  --color-inverse-primary: #95d3ba;
+  --color-secondary: #904d00;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #fe932c;
+  --color-on-secondary-container: #663500;
+  --color-tertiary: #003625;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #004f38;
+  --color-on-tertiary-container: #66c49d;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  --color-primary-fixed: #b0f0d6;
+  --color-primary-fixed-dim: #95d3ba;
+  --color-on-primary-fixed: #002117;
+  --color-on-primary-fixed-variant: #0b513d;
+  --color-secondary-fixed: #ffdcc3;
+  --color-secondary-fixed-dim: #ffb77d;
+  --color-on-secondary-fixed: #2f1500;
+  --color-on-secondary-fixed-variant: #6e3900;
+  --color-tertiary-fixed: #97f5cc;
+  --color-tertiary-fixed-dim: #7bd8b1;
+  --color-on-tertiary-fixed: #002115;
+  --color-on-tertiary-fixed-variant: #00513a;
+  --color-background: #faf8ff;
+  --color-on-background: #131b2e;
+  --color-surface-variant: #dae2fd;
+
+  --spacing-gutter: 1.5rem;
+  --spacing-gutter-sm: 1rem;
+  --spacing-gutter-lg: 2rem;
+  --spacing-margin: 1.5rem;
+  --spacing-margin-sm: 1rem;
+  --spacing-margin-lg: 3rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2.5rem;
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+/* Material Symbols variation settings */
+.material-fill {
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Safe Area Paddings */
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top, 0px), 0px);
+}
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 0px);
+}
+
+/* Mobile Devices & Viewport Optimization */
+html,
+body,
+#root {
+  height: 100%;
+  height: 100dvh;
+  width: 100%;
+  min-width: 320px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Ensure bottom navigation remains completely stationary, anchored, and responsive across all devices (touch, mobile, tablet, desktop) */
+.fixed-bottom-nav {
+  position: relative !important;
+  flex-shrink: 0 !important;
+  width: 100% !important;
+  z-index: 40 !important;
+  transform: none !important;
+  -webkit-transform: none !important;
+  touch-action: manipulation !important;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  user-drag: none;
+  pointer-events: auto !important;
+}
+
+.fixed-bottom-nav button {
+  touch-action: manipulation !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  -webkit-tap-highlight-color: rgba(6, 78, 59, 0.15);
+}
+
+.no-drag {
+  -webkit-user-drag: none !important;
+  user-drag: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+/* Smooth mobile tap responses */
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+/* Prevent horizontal overflow on mobile containers */
+* {
+  box-sizing: border-box;
+}
+
+/* Luxury Custom Animation Keyframes */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes wave-bounce {
+  0%, 100% {
+    height: 4px;
+    opacity: 0.5;
+  }
+  50% {
+    height: 20px;
+    opacity: 1;
+  }
+}
+
+@keyframes float-subtle {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(254, 147, 44, 0.5);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(254, 147, 44, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(254, 147, 44, 0);
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2.4s infinite;
+}
+
+.animate-float {
+  animation: float-subtle 3.2s ease-in-out infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.wave-bar {
+  animation: wave-bounce 1s ease-in-out infinite;
+}
+
+

@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+coverage/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & scratch output
+*.log
+devserver_out.log
+lout.txt
+
+# Expo / native tooling
+.expo/
+.expo-shared/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
