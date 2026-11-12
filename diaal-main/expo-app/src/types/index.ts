@@ -163,8 +163,9 @@ export interface ChatMessage {
   attachments?: {
     id: string;
     title: string;
-    type: 'pdf' | 'image';
+    type: 'pdf' | 'image' | 'audio';
     image?: string;
+    url?: string;
     size?: string;
     storagePath?: string;
     mimeType?: string;

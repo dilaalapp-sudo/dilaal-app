@@ -33,8 +33,6 @@ export const ProfileScreen: React.FC = () => {
     openListingDetails,
     setSearchFilter,
     setActiveTab,
-    userRole,
-    setUserRole,
     selectedCountry,
     setSelectedCountry,
     areaUnit,
@@ -378,7 +376,7 @@ export const ProfileScreen: React.FC = () => {
         <View style={styles.group}>
           <View style={styles.groupHead}>
             <Text style={styles.groupLabel}>
-              {t('roleMarketConfig', 'Role & Market Configuration')}
+              {t('marketConfig', 'Market Configuration')}
             </Text>
             <View style={styles.prefPill}>
               <Text style={styles.prefPillText}>{t('preferences', 'Preferences')}</Text>
@@ -386,70 +384,6 @@ export const ProfileScreen: React.FC = () => {
           </View>
 
           <View style={styles.configCard}>
-            <View style={styles.configSection}>
-              <View style={styles.configHead}>
-                <View style={styles.configIconTile}>
-                  <Icon name="badge" size={19} color={colors.primary} />
-                </View>
-                <View style={styles.flexMin}>
-                  <Text style={styles.configTitle}>{t('platformRole', 'Platform Role')}</Text>
-                  <Text style={styles.configSub}>
-                    {t('switchPerspective', 'Switch market capabilities & perspective')}
-                  </Text>
-                </View>
-                <View style={styles.rolePill}>
-                  <Text style={styles.rolePillText}>
-                    {userRole === 'buyer'
-                      ? t('roleBuyer', 'Buyer')
-                      : userRole === 'seller'
-                      ? t('roleSeller', 'Seller')
-                      : userRole === 'broker'
-                      ? t('roleBroker', 'Broker')
-                      : userRole === 'reviewer'
-                      ? t('roleReviewer', 'Reviewer')
-                      : t('roleGuest', 'Guest')}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.roleGrid}>
-                {[
-                  { id: 'buyer', label: t('roleBuyer', 'Buyer / Investor'), icon: 'person' },
-                  { id: 'seller', label: t('roleSeller', 'Property Owner'), icon: 'home' },
-                  { id: 'broker', label: t('roleBroker', 'Licensed Broker'), icon: 'badge' },
-                  ...(isStaff
-                    ? [{ id: 'reviewer', label: t('roleReviewer', 'Cadastre Auditor'), icon: 'gavel' }]
-                    : []),
-                ].map((item) => {
-                  const isActive = userRole === item.id;
-                  return (
-                    <Pressable
-                      key={item.id}
-                      onPress={() => {
-                        setUserRole(item.id as UserRole);
-                        showToast(`Switched perspective to: ${item.label}`);
-                      }}
-                      style={[styles.roleOption, isActive && styles.roleOptionActive]}
-                    >
-                      <Icon
-                        name={item.icon}
-                        size={14}
-                        color={isActive ? colors.onPrimary : colors.onSurfaceVariant}
-                      />
-                      <Text
-                        style={[styles.roleOptionText, isActive && styles.roleOptionTextActive]}
-                        numberOfLines={1}
-                      >
-                        {item.label.split('/')[0].trim()}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View style={styles.divider} />
-
             <View style={styles.configSection}>
               <View style={styles.configHead}>
                 <View style={styles.configIconTile}>
@@ -1851,47 +1785,6 @@ const makeStyles = (colors: Palette, isDark: boolean) =>
       marginTop: 1,
       lineHeight: 15,
     },
-    rolePill: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 999,
-      backgroundColor: colors.primary,
-    },
-    rolePillText: {
-      fontSize: 11,
-      fontFamily: typography.extrabold,
-      color: colors.onPrimary,
-    },
-    roleGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
-      padding: 4,
-      backgroundColor: colors.surfaceContainerLow,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: `${colors.outlineVariant}33`,
-    },
-    roleOption: {
-      width: '48%',
-      flexGrow: 1,
-      flexBasis: '45%',
-      paddingVertical: 8,
-      paddingHorizontal: 8,
-      borderRadius: 12,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-    },
-    roleOptionActive: { backgroundColor: colors.primary },
-    roleOptionText: {
-      fontSize: 12,
-      fontFamily: typography.semibold,
-      color: colors.onSurfaceVariant,
-      flexShrink: 1,
-    },
-    roleOptionTextActive: { color: colors.onPrimary, fontFamily: typography.bold },
     divider: { height: 1, backgroundColor: `${colors.outlineVariant}26` },
     countrySelector: {
       flexDirection: 'row',

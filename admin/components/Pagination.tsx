@@ -12,32 +12,39 @@ interface PaginationProps {
 export const Pagination: React.FC<PaginationProps> = ({ page, totalPages, total, onPageChange, busy }) => {
   if (totalPages <= 1) {
     return (
-      <div className="flex items-center justify-between px-4 py-3 border-t border-outline-variant/15 text-xs text-outline">
-        <span>{total} record{total === 1 ? '' : 's'}</span>
+      <div className="flex items-center justify-between px-4 py-3 border-t border-outline-variant/15 text-xs text-on-surface-variant">
+        <span className="font-medium">{total} record{total === 1 ? '' : 's'}</span>
       </div>
     );
   }
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-outline-variant/15">
-      <span className="text-xs text-outline">
-        Page {page} of {totalPages} · {total} records
+    <nav className="flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-3 border-t border-outline-variant/15" aria-label="Pagination">
+      <span className="text-xs text-on-surface-variant font-medium">
+        Page <span className="text-on-surface tabular-nums">{page}</span> of <span className="text-on-surface tabular-nums">{totalPages}</span>
+        <span className="hidden sm:inline"> · {total} records</span>
       </span>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         <button
+          type="button"
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1 || busy}
-          className="px-3 py-1.5 text-xs font-bold rounded-lg border border-outline-variant/40 text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Previous page"
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container hover:text-on-surface hover:border-outline-variant/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-primary/50"
         >
-          ← Prev
+          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">chevron_left</span>
+          Prev
         </button>
         <button
+          type="button"
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages || busy}
-          className="px-3 py-1.5 text-xs font-bold rounded-lg border border-outline-variant/40 text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Next page"
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container hover:text-on-surface hover:border-outline-variant/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-primary/50"
         >
-          Next →
+          Next
+          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">chevron_right</span>
         </button>
       </div>
-    </div>
+    </nav>
   );
 };

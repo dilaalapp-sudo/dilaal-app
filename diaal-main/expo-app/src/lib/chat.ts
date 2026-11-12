@@ -89,6 +89,12 @@ interface AttachmentRow {
   mime_type: string | null;
 }
 
+// attachment_type is a pdf|image enum, so voice notes are stored as 'image'
+// rows and told apart by their audio/* mime type.
+function attachmentTypeForUi(row: AttachmentRow): 'pdf' | 'image' | 'audio' {
+  return row.mime_type?.startsWith('audio/') ? 'audio' : row.type;
+}
+
 const MESSAGE_COLUMNS =
   'id, conversation_id, broker_id, sender, sender_name, body, sent_at, is_audio, audio_duration, audio_origin, created_at';
 
@@ -169,11 +175,14 @@ async function fetchAttachmentsForMessages(
   const map: Record<string, NonNullable<ChatMessage['attachments']>> = {};
   rows.forEach((row) => {
     if (!row.message_id) return;
+    const type = attachmentTypeForUi(row);
+    const url = row.storage_path ? signed[row.storage_path] : row.image ?? undefined;
     (map[row.message_id] ||= []).push({
       id: row.id,
       title: row.title,
-      type: row.type,
-      image: row.storage_path ? signed[row.storage_path] : row.image ?? undefined,
+      type,
+      image: type === 'audio' ? undefined : url,
+      url,
       size: row.size ?? undefined,
       storagePath: row.storage_path ?? undefined,
       mimeType: row.mime_type ?? undefined,
@@ -234,6 +243,13 @@ export async function getOrCreateConversation(opts: {
   buyerId: string;
 }): Promise<ConversationRow | null> {
   if (!opts.brokerId || !opts.buyerId) return null;
+
+  const { data: broker } = await supabase
+    .from('brokers')
+    .select('owner_id')
+    .eq('id', opts.brokerId)
+    .maybeSingle();
+  if (broker?.owner_id === opts.buyerId) return null;
 
   // Only filter by listing when one is attached; directory chats reuse the
   // buyer's conversation with that broker instead of creating duplicates.
@@ -373,7 +389,7 @@ export async function sendChatMessage(opts: {
       .insert({
         message_id: row.id,
         title: opts.attachment.title,
-        type: opts.attachment.type,
+        type: opts.attachment.type === 'audio' ? 'image' : opts.attachment.type,
         image: opts.attachment.storagePath ? null : opts.attachment.image ?? null,
         size: opts.attachment.size ?? null,
         storage_path: opts.attachment.storagePath ?? null,
@@ -385,6 +401,7 @@ export async function sendChatMessage(opts: {
       console.warn('[DILAAL] attachment insert failed:', attachmentError.message);
     } else if (attachmentRow) {
       const mapped = attachmentRow as AttachmentRow;
+      const type = attachmentTypeForUi(mapped);
       const signed = mapped.storage_path
         ? (await signedAttachmentUrls([mapped.storage_path]))[mapped.storage_path]
         : undefined;
@@ -392,8 +409,9 @@ export async function sendChatMessage(opts: {
         {
           id: mapped.id,
           title: mapped.title,
-          type: mapped.type,
-          image: signed ?? mapped.image ?? undefined,
+          type,
+          image: type === 'audio' ? undefined : signed ?? mapped.image ?? undefined,
+          url: signed ?? mapped.image ?? undefined,
           size: mapped.size ?? undefined,
           storagePath: mapped.storage_path ?? undefined,
           mimeType: mapped.mime_type ?? undefined,
@@ -478,6 +496,12 @@ export function subscribeConversation(
 /** Every buyer conversation addressed to a broker, newest activity first. */
 export async function fetchBrokerInbox(brokerId: string): Promise<InboxItem[]> {
   if (!brokerId) return [];
+  const { data: broker } = await supabase
+    .from('brokers')
+    .select('owner_id')
+    .eq('id', brokerId)
+    .maybeSingle();
+  const ownerId = broker?.owner_id ?? null;
   const { data: convs, error } = await supabase
     .from('conversations')
     .select('id, listing_id, broker_id, buyer_id, updated_at')
@@ -487,7 +511,7 @@ export async function fetchBrokerInbox(brokerId: string): Promise<InboxItem[]> {
     console.warn('[DILAAL] inbox fetch failed:', error?.message);
     return [];
   }
-  const rows = convs as ConversationRow[];
+  const rows = (convs as ConversationRow[]).filter((row) => row.buyer_id !== ownerId);
   if (rows.length === 0) return [];
 
   const listingIds = Array.from(
@@ -500,7 +524,8 @@ export async function fetchBrokerInbox(brokerId: string): Promise<InboxItem[]> {
       ? supabase.from('listings').select('id, title, image').in('id', listingIds)
       : Promise.resolve({ data: [] as { id: string; title: string; image: string | null }[] }),
     buyerIds.length
-      ? supabase.from('profiles').select('id, full_name').in('id', buyerIds)
+      // Two-column view: counterpart profiles never expose phone/email.
+      ? supabase.from('chat_profiles').select('id, full_name').in('id', buyerIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
     supabase
       .from('chat_messages')
@@ -574,7 +599,7 @@ export async function fetchBuyerInbox(buyerId: string): Promise<BuyerInboxItem[]
     listingIds.length
       ? supabase.from('listings').select('id, title, image').in('id', listingIds)
       : Promise.resolve({ data: [] as { id: string; title: string; image: string | null }[] }),
-    supabase.from('brokers').select('id, name, avatar').in('id', brokerIds),
+    supabase.from('brokers').select('id, name, avatar, owner_id').in('id', brokerIds),
     supabase
       .from('chat_messages')
       .select('conversation_id, body, sent_at')
@@ -592,11 +617,19 @@ export async function fetchBuyerInbox(buyerId: string): Promise<BuyerInboxItem[]
     ])
   );
   const brokerMap = new Map(
-    ((brokersRes.data ?? []) as { id: string; name: string; avatar: string | null }[]).map((b) => [
-      b.id,
-      b,
-    ])
+    (
+      (brokersRes.data ?? []) as {
+        id: string;
+        name: string;
+        avatar: string | null;
+        owner_id: string | null;
+      }[]
+    ).map((b) => [b.id, b])
   );
+  const visibleRows = rows.filter((row) => {
+    const broker = brokerMap.get(row.broker_id);
+    return !broker || broker.owner_id !== buyerId;
+  });
   const lastByConversation = new Map<string, { body: string; sent_at: string }>();
   (
     (messagesRes.data ?? []) as { conversation_id: string; body: string; sent_at: string }[]
@@ -606,7 +639,7 @@ export async function fetchBuyerInbox(buyerId: string): Promise<BuyerInboxItem[]
     }
   });
 
-  return rows.map((row) => {
+  return visibleRows.map((row) => {
     const listing = row.listing_id ? listingMap.get(row.listing_id) : undefined;
     const broker = brokerMap.get(row.broker_id);
     const last = lastByConversation.get(row.id);

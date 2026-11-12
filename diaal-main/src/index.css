@@ -251,4 +251,21 @@ textarea {
   animation: wave-bounce 1s ease-in-out infinite;
 }
 
+/* Leaflet MarkerCluster overrides to match DILAAL theme */
+.leaflet-cluster-icon {
+  background: linear-gradient(135deg, #003527, #064e3b);
+  border: 2px solid rgba(255,255,255,0.6);
+  border-radius: 50% !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.leaflet-cluster-icon span {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+}
+
+.map-view-header {
+  background: linear-gradient(135deg, #003527, #064e3b);
+}
+
 

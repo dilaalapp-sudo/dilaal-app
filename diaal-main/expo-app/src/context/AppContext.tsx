@@ -33,7 +33,11 @@ import {
   insertSupabaseReport,
   insertSupabaseAuditLog,
 } from '../lib/supabase';
-import { fetchMarketplaceCategories, type MarketplaceCategory } from '../lib/categories';
+import {
+  DEFAULT_MARKETPLACE_CATEGORIES,
+  fetchMarketplaceCategories,
+  type MarketplaceCategory,
+} from '../lib/categories';
 import {
   fetchFavoriteIds,
   addFavorite,
@@ -57,7 +61,7 @@ import {
   type DealRow,
   type DealMilestoneRow,
 } from '../lib/persistence';
-import { API_BASE } from '../lib/apiBase';
+import { getApiBase } from '../lib/apiBase';
 import { registerPushToken } from '../lib/push';
 import {
   getOrCreateConversation,
@@ -187,7 +191,10 @@ interface AppContextType {
   loadingOlderMessages: boolean;
   loadOlderMessages: () => Promise<void>;
   sendMessage: (text: string) => void;
-  sendVoiceNote: (duration?: string) => void;
+  sendVoiceNote: (
+    duration?: string,
+    audio?: { storagePath?: string; url?: string; size?: string; mimeType?: string }
+  ) => void;
   sendAttachment: (
     title: string,
     type: 'pdf' | 'image',
@@ -236,10 +243,11 @@ interface AppContextType {
   registerWithEmail: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   authReady: boolean;
-  deleteAccountData: () => void;
-  exportAccountData: () => string;
+  deleteAccountData: () => Promise<{ success: boolean; error?: string }>;
+  exportAccountData: () => Promise<string>;
   supabaseStatus: SupabaseStatusState;
   refreshFromSupabase: () => Promise<void>;
+  refreshCategories: () => Promise<void>;
   t: (key: string, fallback?: string) => string;
 }
 
@@ -393,7 +401,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cancelled = true;
     };
   }, []);
-  const [categories, setCategories] = useState<MarketplaceCategory[]>([]);
+  const [categories, setCategories] = useState<MarketplaceCategory[]>(DEFAULT_MARKETPLACE_CATEGORIES);
   const [brokers, setBrokers] = useState<Broker[]>([]);
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -442,11 +450,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       typeof profile?.role === 'string' && knownRoles.includes(profile.role as UserRole)
         ? (profile.role as UserRole)
         : undefined;
-    const metadataRole =
-      typeof metadata.role === 'string' && knownRoles.includes(metadata.role as UserRole)
-        ? (metadata.role as UserRole)
-        : undefined;
-    const resolvedRole = profileRole ?? metadataRole ?? 'buyer';
+    // Role is server-owned (profiles row). Never trust client-set auth metadata.
+    const resolvedRole = profileRole ?? 'buyer';
 
     setAuthUserId(user.id);
     setCurrentUser({
@@ -460,14 +465,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
+  const refreshCategories = async () => {
+    const data = await fetchMarketplaceCategories();
+    if (data) setCategories(data);
+  };
+
   const refreshFromSupabase = async () => {
     setSupabaseStatus((prev) => ({ ...prev, checking: true }));
 
-    // Categories come from the marketplace API, so they stay available even
-    // when the browser's direct Supabase connection is unhealthy.
-    fetchMarketplaceCategories().then((data) => {
-      if (data) setCategories(data);
-    });
+    void refreshCategories();
 
     try {
       // These four reads are independent — run them together so opening the
@@ -1013,7 +1019,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const sendVoiceNote = (duration = '0:42') => {
+  const sendVoiceNote = (
+    duration = '0:42',
+    audio?: { storagePath?: string; url?: string; size?: string; mimeType?: string }
+  ) => {
     const ctx = activeChatContext();
     void postChatMessage({
       listingId: ctx.listingId,
@@ -1023,6 +1032,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isAudio: true,
       audioDuration: duration,
       audioOrigin: 'Client Device',
+      attachment: audio
+        ? {
+            id: `voice-${Date.now()}`,
+            title: 'Voice Memo',
+            type: 'audio',
+            url: audio.url,
+            storagePath: audio.storagePath,
+            size: audio.size,
+            mimeType: audio.mimeType ?? 'audio/m4a',
+          }
+        : undefined,
     });
   };
 
@@ -1323,7 +1343,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       amenities: newListingData.amenities || [],
       isFavorite: false,
       tags: newListingData.tags || [],
-      moderationStatus: 'under_review',
+      moderationStatus: 'published',
       ownerId: authUserId || undefined,
       createdAt: new Date().toISOString(),
     };
@@ -1639,36 +1659,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void deleteSavedSearchById(id);
   };
 
-  const deleteAccountData = () => {
+  const deleteAccountData = async (): Promise<{ success: boolean; error?: string }> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { success: false, error: 'Sign in before deleting your account.' };
+    try {
+      const response = await fetch(`${await getApiBase()}/api/account/purge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ confirmation: 'DELETE' }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { success?: boolean; error?: string };
+      if (!response.ok || !payload.success) {
+        return { success: false, error: payload.error || 'Could not delete the account. Please try again.' };
+      }
+    } catch {
+      return { success: false, error: 'Could not reach the server. Your account was not deleted.' };
+    }
+
+    await supabase.auth.signOut().catch(() => {});
     setFavorites({});
     setUserRole('guest');
+    setAuthUserId('');
     setCurrentUser({ name: '', email: '', role: 'guest', kycStatus: 'unverified' });
     setChatMessages([]);
     setReports([]);
     setSupportTickets([]);
-    setNotifications([
-      {
-        id: `notif-${Date.now()}`,
-        title: 'Account Data Purged',
-        desc: 'All locally stored user sessions and records have been deleted in compliance with GDPR and Google Play data safety policies.',
-        time: 'Just now',
-        unread: true,
-      },
-    ]);
+    setNotifications([]);
+    return { success: true };
   };
 
-  const exportAccountData = (): string => {
-    const data = {
+  const exportAccountData = async (): Promise<string> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id ?? authUserId;
+    const base = {
       exportTimestamp: new Date().toISOString(),
+      userId: uid,
+      email: session?.user?.email ?? '',
       userRole,
       language,
       currency,
-      favorites,
-      savedSearches,
-      supportTickets,
-      reportsSubmitted: reports,
     };
-    return JSON.stringify(data, null, 2);
+    if (!uid) {
+      return JSON.stringify({ ...base, favorites, savedSearches, supportTickets, reportsSubmitted: reports }, null, 2);
+    }
+    const [profile, listings, reportRows, conversations, tickets, searches, favs] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
+      supabase.from('listings').select('*').eq('owner_id', uid),
+      supabase.from('reports').select('*').eq('reporter_id', uid),
+      supabase.from('conversations').select('*').eq('buyer_id', uid),
+      supabase.from('support_tickets').select('*').eq('user_id', uid),
+      supabase.from('saved_searches').select('*').eq('user_id', uid),
+      supabase.from('favorites').select('*').eq('user_id', uid),
+    ]);
+    return JSON.stringify(
+      {
+        ...base,
+        profile: profile.data ?? null,
+        listings: listings.data ?? [],
+        reports: reportRows.data ?? [],
+        conversations: conversations.data ?? [],
+        supportTickets: tickets.data ?? [],
+        savedSearches: searches.data ?? [],
+        favorites: favs.data ?? [],
+      },
+      null,
+      2
+    );
   };
 
   const markNotificationsAsRead = () => {
@@ -1704,7 +1763,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // before that policy existed are confirmed on the fly, then sign-in is
       // retried once so users never see a "confirm your email" message.
       if (error && /email not confirmed/i.test(error.message)) {
-        const response = await fetch(`${API_BASE}/api/auth/confirm-email`, {
+        const response = await fetch(`${await getApiBase()}/api/auth/confirm-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: cleanEmail, password }),
@@ -1758,7 +1817,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // The server creates an already-confirmed account, so the user can
       // immediately sign in with the same email and password. Registration
       // itself does not sign anyone in.
-      const response = await fetch(`${API_BASE}/api/auth/register`, {
+      const response = await fetch(`${await getApiBase()}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1892,6 +1951,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         exportAccountData,
         supabaseStatus,
         refreshFromSupabase,
+        refreshCategories,
         hasMoreListings,
         loadingMoreListings,
         loadMoreListings,

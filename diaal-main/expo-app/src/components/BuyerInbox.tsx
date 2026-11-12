@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, ScrollView } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Image, ScrollView, TextInput } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { fetchBuyerInbox, subscribeInbox, type BuyerInboxItem } from '../lib/chat';
 import { Icon } from './Icon';
@@ -10,22 +10,52 @@ const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.surface },
     scroll: { flex: 1 },
-    content: { paddingHorizontal: 14, paddingTop: 16, paddingBottom: 24, gap: 12 },
-    wrap: { width: '100%', maxWidth: 672, alignSelf: 'center', gap: 12 },
+    content: { paddingHorizontal: 14, paddingTop: 16, paddingBottom: 24 },
+    wrap: { width: '100%', maxWidth: 672, alignSelf: 'center', gap: 14 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    title: { fontSize: 16, fontFamily: typography.extrabold, color: colors.onSurface },
+    title: { fontSize: 18, fontFamily: typography.extrabold, color: colors.onSurface, letterSpacing: -0.3 },
     subtitle: { fontSize: 12, color: colors.onSurfaceVariant, marginTop: 2 },
     refreshBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      backgroundColor: colors.surfaceContainer,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: colors.success + '14',
+      borderWidth: 1,
+      borderColor: colors.success + '26',
       alignItems: 'center',
       justifyContent: 'center',
     },
-    skeleton: {
-      height: 76,
+    searchBox: {
+      height: 46,
       borderRadius: 16,
+      backgroundColor: colors.surfaceContainerLowest,
+      borderWidth: 1,
+      borderColor: colors.outlineVariant + '33',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 12,
+    },
+    searchInput: { flex: 1, fontSize: 13, color: colors.onSurface, paddingVertical: 8 },
+    sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    sectionLabel: {
+      fontSize: 11,
+      fontFamily: typography.bold,
+      color: colors.outline,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+    },
+    countPill: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 999,
+      backgroundColor: colors.surfaceContainer,
+    },
+    countText: { fontSize: 10, fontFamily: typography.bold, color: colors.onSurfaceVariant },
+    list: { gap: 10 },
+    skeleton: {
+      height: 84,
+      borderRadius: 18,
       backgroundColor: colors.surfaceContainer,
       borderWidth: 1,
       borderColor: colors.outlineVariant + '1A',
@@ -33,56 +63,65 @@ const makeStyles = (colors: Palette) =>
     empty: {
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 60,
+      paddingVertical: 56,
       paddingHorizontal: 24,
       gap: 6,
       minHeight: 280,
     },
     emptyIcon: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: colors.surfaceContainer,
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: colors.success + '14',
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 8,
     },
-    emptyTitle: { fontSize: 14, fontFamily: typography.bold, color: colors.onSurface },
-    emptySub: { fontSize: 12, color: colors.onSurfaceVariant, textAlign: 'center', lineHeight: 18, maxWidth: 280 },
+    emptyTitle: { fontSize: 15, fontFamily: typography.bold, color: colors.onSurface },
+    emptySub: {
+      fontSize: 12,
+      color: colors.onSurfaceVariant,
+      textAlign: 'center',
+      lineHeight: 18,
+      maxWidth: 280,
+    },
     browseBtn: {
       marginTop: 16,
       paddingHorizontal: 20,
       paddingVertical: 10,
       borderRadius: 16,
-      backgroundColor: colors.primary,
+      backgroundColor: colors.success,
       ...shadow.card,
     },
-    browseText: { fontSize: 12, fontFamily: typography.bold, color: colors.onPrimary },
+    browseText: { fontSize: 12, fontFamily: typography.bold, color: '#ffffff' },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
       padding: 12,
-      borderRadius: 16,
+      borderRadius: 18,
       backgroundColor: colors.surfaceContainerLowest,
       borderWidth: 1,
-      borderColor: colors.outlineVariant + '33',
+      borderColor: colors.outlineVariant + '26',
+      ...shadow.card,
     },
-    avatar: { width: 44, height: 44, borderRadius: 22 },
+    avatar: { width: 48, height: 48, borderRadius: 24 },
     avatarFallback: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: colors.surfaceContainer,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.primaryContainer,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    rowBody: { flex: 1, minWidth: 0, gap: 2 },
+    rowBody: { flex: 1, minWidth: 0, gap: 3 },
     rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    name: { fontSize: 12, fontFamily: typography.bold, color: colors.onSurface, flexShrink: 1 },
-    time: { fontSize: 10, color: colors.outline },
-    listing: { fontSize: 11, fontFamily: typography.semibold, color: colors.primary },
-    last: { fontSize: 11, color: colors.onSurfaceVariant },
+    name: { fontSize: 13, fontFamily: typography.bold, color: colors.onSurface, flexShrink: 1 },
+    time: { fontSize: 10.5, color: colors.outline },
+    listingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    listing: { fontSize: 11, fontFamily: typography.semibold, color: colors.success, flexShrink: 1 },
+    last: { fontSize: 11.5, color: colors.onSurfaceVariant },
+    chevron: { paddingLeft: 2 },
   });
 
 export const BuyerInbox: React.FC = () => {
@@ -92,6 +131,7 @@ export const BuyerInbox: React.FC = () => {
 
   const [items, setItems] = useState<BuyerInboxItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
 
   const load = async (silent = false) => {
     if (!authUserId) {
@@ -113,21 +153,69 @@ export const BuyerInbox: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUserId]);
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (item) =>
+        item.brokerName.toLowerCase().includes(q) ||
+        item.listingTitle.toLowerCase().includes(q) ||
+        item.lastMessage.toLowerCase().includes(q)
+    );
+  }, [items, query]);
+
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.wrap}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>{t('yourChats', 'Your Chats')}</Text>
-            <Text style={styles.subtitle}>Conversations with brokers</Text>
+            <Text style={styles.title}>{t('yourChats', 'Chats')}</Text>
+            <Text style={styles.subtitle}>
+              {items.length === 1 ? '1 conversation with a broker' : `${items.length} conversations with brokers`}
+            </Text>
           </View>
-          <Pressable onPress={() => void load(true)} style={styles.refreshBtn} accessibilityLabel="Refresh">
-            <Icon name="refresh" size={19} color={colors.primary} />
+          <Pressable
+            onPress={() => void load(true)}
+            style={styles.refreshBtn}
+            accessibilityLabel="Refresh"
+          >
+            <Icon name="refresh" size={18} color={colors.success} />
           </Pressable>
         </View>
 
+        <View style={styles.searchBox}>
+          <Icon name="search" size={18} color={colors.outline} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('searchChats', 'Search chats')}
+            placeholderTextColor={colors.outline}
+            style={styles.searchInput}
+            returnKeyType="search"
+          />
+          {query ? (
+            <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityLabel="Clear search">
+              <Icon name="close" size={16} color={colors.outline} />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {!loading && items.length > 0 ? (
+          <View style={styles.sectionRow}>
+            <Text style={styles.sectionLabel}>{t('recentChats', 'Recent')}</Text>
+            <View style={styles.countPill}>
+              <Text style={styles.countText}>{filtered.length}</Text>
+            </View>
+          </View>
+        ) : null}
+
         {loading ? (
-          <View style={{ gap: 8 }}>
+          <View style={styles.list}>
             <Skeleton style={styles.skeleton} />
             <Skeleton style={styles.skeleton} />
             <Skeleton style={styles.skeleton} />
@@ -135,20 +223,28 @@ export const BuyerInbox: React.FC = () => {
         ) : items.length === 0 ? (
           <View style={styles.empty}>
             <View style={styles.emptyIcon}>
-              <Icon name="forum" size={30} color={colors.outline} />
+              <Icon name="forum" size={30} color={colors.success} />
             </View>
-            <Text style={styles.emptyTitle}>No chats yet</Text>
+            <Text style={styles.emptyTitle}>{t('noChatsYet', 'No chats yet')}</Text>
             <Text style={styles.emptySub}>
               Contact a broker from a listing or the Dilaalo Directory and your conversation will
               appear here.
             </Text>
             <Pressable onPress={() => setCurrentScreen('home')} style={styles.browseBtn}>
-              <Text style={styles.browseText}>Browse Listings</Text>
+              <Text style={styles.browseText}>{t('browseListings', 'Browse Listings')}</Text>
             </Pressable>
           </View>
+        ) : filtered.length === 0 ? (
+          <View style={styles.empty}>
+            <View style={styles.emptyIcon}>
+              <Icon name="search" size={28} color={colors.success} />
+            </View>
+            <Text style={styles.emptyTitle}>No matches</Text>
+            <Text style={styles.emptySub}>Try a different broker name, listing, or message.</Text>
+          </View>
         ) : (
-          <View style={{ gap: 8 }}>
-            {items.map((item) => (
+          <View style={styles.list}>
+            {filtered.map((item) => (
               <Pressable
                 key={item.conversationId}
                 onPress={() =>
@@ -159,13 +255,13 @@ export const BuyerInbox: React.FC = () => {
                     item.conversationId
                   )
                 }
-                style={styles.row}
+                style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
               >
                 {item.brokerAvatar ? (
                   <Image source={{ uri: item.brokerAvatar }} style={styles.avatar} />
                 ) : (
                   <View style={styles.avatarFallback}>
-                    <Icon name="person" size={20} color={colors.outline} />
+                    <Icon name="person" size={22} color={colors.onPrimaryContainer} />
                   </View>
                 )}
                 <View style={styles.rowBody}>
@@ -175,13 +271,17 @@ export const BuyerInbox: React.FC = () => {
                     </Text>
                     <Text style={styles.time}>{item.lastAt}</Text>
                   </View>
-                  <Text style={styles.listing} numberOfLines={1}>
-                    {item.listingTitle}
-                  </Text>
+                  <View style={styles.listingRow}>
+                    <Icon name="home_work" size={12} color={colors.success} />
+                    <Text style={styles.listing} numberOfLines={1}>
+                      {item.listingTitle}
+                    </Text>
+                  </View>
                   <Text style={styles.last} numberOfLines={1}>
                     {item.lastMessage}
                   </Text>
                 </View>
+                <Icon name="chevron_right" size={18} color={colors.outlineVariant} />
               </Pressable>
             ))}
           </View>

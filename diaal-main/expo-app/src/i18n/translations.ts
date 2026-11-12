@@ -10,6 +10,9 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     verifiedTitle: 'Verified Real Estate',
 
     // Navigation (BottomNav & App Header)
+    goodMorning: 'Good morning',
+    goodAfternoon: 'Good afternoon',
+    goodEvening: 'Good evening',
     navHome: 'Home',
     navSearch: 'Search',
     navPost: 'Post Listing',
@@ -331,6 +334,9 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     verifiedTitle: 'Hanti Maguurto Sugan',
 
     // Navigation (BottomNav & App Header)
+    goodMorning: 'Subax wanaagsan',
+    goodAfternoon: 'Galab wanaagsan',
+    goodEvening: 'Habeen wanaagsan',
     navHome: 'Hoyga',
     navSearch: 'Raadi',
     navPost: 'Xayeysii',
@@ -652,6 +658,9 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     verifiedTitle: 'عقارات معتمدة وموثقة',
 
     // Navigation (BottomNav & App Header)
+    goodMorning: 'صباح الخير',
+    goodAfternoon: 'مساء الخير',
+    goodEvening: 'مساء الخير',
     navHome: 'الرئيسية',
     navSearch: 'البحث',
     navPost: 'إضافة عقار',

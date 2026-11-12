@@ -252,12 +252,17 @@ const COMMERCIAL_TYPE_OPTIONS: SelectOption[] = [
 ];
 
 export const PostListingScreen: React.FC = () => {
-  const { addListing, categories, setCurrentScreen, setActiveTab, selectedCountry, formatPrice, authUserId, t } =
+  const { addListing, categories, refreshCategories, setCurrentScreen, setActiveTab, selectedCountry, formatPrice, authUserId, t } =
     useApp();
   const colors = useColors();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [category, setCategory] = useState('');
+
+  useEffect(() => {
+    void refreshCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (categories.length === 0) return;
@@ -787,44 +792,76 @@ export const PostListingScreen: React.FC = () => {
                       <Pressable
                         key={item.id}
                         onPress={() => handleSelectCategory(item.slug)}
-                        style={[
+                        style={({ pressed }) => [
                           styles.categoryCard,
                           active
                             ? {
                                 backgroundColor: colors.primaryContainer,
-                                borderColor: colors.primary,
+                                borderColor: colors.primaryContainer,
                                 ...shadow.card,
                               }
                             : {
                                 backgroundColor: colors.surfaceContainerLowest,
                                 borderColor: colors.outlineVariant + '33',
                               },
+                          pressed && { opacity: 0.85 },
                         ]}
                       >
-                        <Icon
-                          name={presentation.icon}
-                          size={26}
-                          color={active ? colors.onPrimary : colors.primary}
-                        />
-                        <Text
+                        <View
                           style={[
-                            styles.categoryLabel,
-                            { color: active ? colors.onPrimary : colors.onSurface },
+                            styles.categoryIconWrap,
+                            {
+                              backgroundColor: active
+                                ? 'rgba(255,255,255,0.14)'
+                                : colors.surfaceContainer,
+                            },
                           ]}
-                          numberOfLines={2}
                         >
-                          {label}
-                        </Text>
-                        {presentation.tag ? (
+                          <Icon
+                            name={presentation.icon}
+                            size={19}
+                            color={active ? colors.secondaryFixed : colors.primary}
+                          />
+                        </View>
+
+                        <View style={styles.categoryTextCol}>
                           <Text
                             style={[
-                              styles.categoryTag,
-                              { color: active ? colors.onPrimary + 'CC' : colors.outline },
+                              styles.categoryLabel,
+                              { color: active ? colors.onPrimary : colors.onSurface },
                             ]}
+                            numberOfLines={1}
                           >
-                            {presentation.tag}
+                            {label}
                           </Text>
-                        ) : null}
+                          {presentation.tag ? (
+                            <Text
+                              style={[
+                                styles.categoryTag,
+                                { color: active ? colors.primaryFixedDim : colors.outline },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {presentation.tag}
+                            </Text>
+                          ) : null}
+                        </View>
+
+                        <View
+                          style={[
+                            styles.categoryCheck,
+                            {
+                              backgroundColor: active ? colors.secondaryContainer : 'transparent',
+                              borderColor: active
+                                ? colors.secondaryContainer
+                                : colors.outlineVariant + '66',
+                            },
+                          ]}
+                        >
+                          {active ? (
+                            <Icon name="check" size={12} color={colors.onSecondaryContainer} />
+                          ) : null}
+                        </View>
                       </Pressable>
                     );
                   })}
@@ -1557,14 +1594,31 @@ const styles = StyleSheet.create({
   categoryCard: {
     width: '48%',
     flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  categoryIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 4,
   },
-  categoryLabel: { fontSize: 12, fontFamily: typography.bold, textAlign: 'center' },
+  categoryCheck: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryTextCol: { flex: 1, gap: 1 },
+  categoryLabel: { fontSize: 12.5, fontFamily: typography.bold, letterSpacing: -0.2 },
   categoryTag: { fontSize: 10, fontFamily: typography.medium },
 
   infoBanner: {

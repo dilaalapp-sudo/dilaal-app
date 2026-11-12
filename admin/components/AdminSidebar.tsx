@@ -45,18 +45,28 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     return (
       <button
         key={item.id}
+        type="button"
+        role="listitem"
         onClick={() => {
           onSelect(item.id);
           setMobileOpen?.(false);
         }}
+        aria-label={item.label}
+        aria-current={isActive ? 'page' : undefined}
         title={collapsed ? item.label : undefined}
-        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors mb-1.5 ${
+        className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150 focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-inset ${
           isActive
-            ? 'bg-primary-container text-on-primary'
-            : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+            ? 'bg-primary text-on-primary shadow-sm'
+            : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
         } ${collapsed ? 'justify-center px-0' : ''}`}
       >
-        <span className="material-symbols-outlined w-5 text-center shrink-0">{item.icon}</span>
+        <span
+          className={`material-symbols-outlined w-5 text-center shrink-0 text-[20px] transition-transform duration-150 ${!isActive ? 'group-hover:scale-110' : ''}`}
+          aria-hidden="true"
+          style={{ fontVariationSettings: isActive ? "'FILL' 1, 'wght' 500" : "'FILL' 0, 'wght' 400" }}
+        >
+          {item.icon}
+        </span>
         {!collapsed && <span className={isActive ? 'font-semibold' : 'font-medium'}>{item.label}</span>}
       </button>
     );
@@ -69,70 +79,105 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     <>
       {/* Mobile backdrop */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setMobileOpen?.(false)} />
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity"
+          onClick={() => setMobileOpen?.(false)}
+          aria-hidden="true"
+        />
       )}
       {/* Sidebar */}
       <aside
+        aria-label="Admin navigation"
         className={`fixed left-0 top-0 bottom-0 ${
-          collapsed ? 'w-[76px]' : 'w-64'
-        } bg-surface border-r border-outline-variant/25 z-40 flex flex-col transition-all duration-300 ${
+          collapsed ? 'w-[76px]' : 'w-[260px]'
+        } bg-surface-container-lowest/95 backdrop-blur-xl border-r border-outline-variant/20 z-40 flex flex-col transition-all duration-300 ease-out shadow-[var(--shadow-sm)] ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'
         }`}
       >
-        <div className={`flex items-center px-5 py-4 border-b border-outline-variant/25 ${collapsed ? 'justify-center px-0' : 'justify-between'}`}>
+        <div className={`flex items-center h-16 px-4 border-b border-outline-variant/15 ${collapsed ? 'justify-center px-0' : 'justify-between'}`}>
           {!collapsed && (
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="material-symbols-outlined text-primary text-lg shrink-0">admin_panel_settings</span>
-              <span className="font-bold text-on-surface text-sm tracking-wide truncate">DILAAL Admin</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-container flex items-center justify-center shadow-sm shrink-0">
+                <span className="material-symbols-outlined text-on-primary text-[18px]" aria-hidden="true">shield_person</span>
+              </div>
+              <div className="min-w-0">
+                <span className="font-extrabold text-on-surface text-sm tracking-tight block leading-none">DILAAL</span>
+                <span className="text-[10px] font-semibold text-primary uppercase tracking-widest">Admin</span>
+              </div>
             </div>
           )}
-          {collapsed && <span className="material-symbols-outlined text-primary text-lg">admin_panel_settings</span>}
-          {setCollapsed && (
+          {collapsed && (
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-primary-container flex items-center justify-center shadow-sm">
+              <span className="material-symbols-outlined text-on-primary text-[18px]" aria-hidden="true">shield_person</span>
+            </div>
+          )}
+          {setCollapsed && !collapsed && (
             <button
+              type="button"
               onClick={() => setCollapsed(!collapsed)}
-              className="hidden sm:block p-1.5 text-outline hover:text-on-surface transition-colors shrink-0"
-              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="hidden sm:flex p-1.5 text-outline hover:text-on-surface hover:bg-surface-container rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-primary/50"
             >
-              <span className="material-symbols-outlined text-lg">
-                {collapsed ? 'right_panel_open' : 'left_panel_close'}
-              </span>
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">left_panel_close</span>
             </button>
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-2 py-3">
-          <div className="px-3 mb-1">
-            {!collapsed && <p className="text-[10px] font-bold text-outline uppercase tracking-wider mb-2">Management</p>}
-            {management.map(renderItem)}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5" aria-label="Primary">
+          <div>
+            {!collapsed && <p className="px-3 text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Management</p>}
+            <div className="space-y-0.5" role="list">
+              {management.map(renderItem)}
+            </div>
           </div>
 
-          <div className="px-3 mt-6">
-            {!collapsed && <p className="text-[10px] font-bold text-outline uppercase tracking-wider mb-2">System</p>}
-            {system.map(renderItem)}
-          </div>
-
-          <div className="px-3 mt-6">
-            {!collapsed && (
-              <div className="mb-2 p-3 rounded-xl bg-surface-container-high border border-outline-variant/20">
-                <p className="text-[11px] font-bold text-on-surface truncate">{admin?.name ?? 'Administrator'}</p>
-                <p className="text-[10px] text-outline truncate">{admin?.email}</p>
-                <span className="mt-1.5 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-primary-container text-on-primary">
-                  {admin?.role}
-                </span>
-              </div>
-            )}
-            <button
-              onClick={() => signOut()}
-              title={collapsed ? 'Sign out' : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-error hover:bg-error-container/30 dark:hover:bg-error-container/40 transition-colors ${
-                collapsed ? 'justify-center px-0' : ''
-              }`}
-            >
-              <span className="material-symbols-outlined w-5 text-center shrink-0">logout</span>
-              {!collapsed && <span className="font-medium">Sign Out</span>}
-            </button>
+          <div>
+            {!collapsed && <p className="px-3 text-[10px] font-bold text-outline uppercase tracking-widest mb-2">System</p>}
+            <div className="space-y-0.5" role="list">
+              {system.map(renderItem)}
+            </div>
           </div>
         </nav>
+
+        <div className="p-3 border-t border-outline-variant/15 space-y-2">
+          {!collapsed && (
+            <div className="p-3 rounded-xl bg-surface-container border border-outline-variant/15">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                  {(admin?.name || admin?.email || 'A').charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-on-surface truncate">{admin?.name ?? 'Administrator'}</p>
+                  <p className="text-[10px] text-on-surface-variant truncate">{admin?.email}</p>
+                </div>
+              </div>
+              <span className="mt-2 inline-flex px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide bg-primary/10 text-primary ring-1 ring-primary/20">
+                {admin?.role ?? 'admin'}
+              </span>
+            </div>
+          )}
+          {collapsed && setCollapsed && (
+            <button
+              type="button"
+              onClick={() => setCollapsed(false)}
+              aria-label="Expand sidebar"
+              className="hidden sm:flex w-full items-center justify-center p-2 text-outline hover:text-on-surface hover:bg-surface-container rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-primary/50"
+            >
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">right_panel_open</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => signOut()}
+            aria-label="Sign out"
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-error hover:bg-error-container/30 transition-colors focus-visible:ring-2 focus-visible:ring-error/40 ${
+              collapsed ? 'justify-center px-0' : ''
+            }`}
+          >
+            <span className="material-symbols-outlined w-5 text-center shrink-0 text-[20px]" aria-hidden="true">logout</span>
+            {!collapsed && <span className="font-medium">Sign Out</span>}
+          </button>
+        </div>
       </aside>
     </>
   );

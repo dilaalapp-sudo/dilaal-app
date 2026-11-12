@@ -34,11 +34,11 @@ const makeStyles = (colors: Palette, isDark: boolean) => {
 
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: page },
-    header: { backgroundColor: '#0f172a', paddingHorizontal: 16, paddingVertical: 22 },
+    header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
     headerInner: { width: '100%', maxWidth: 896, alignSelf: 'center', gap: 12 },
     headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    headerTitle: { fontSize: 20, fontFamily: typography.bold, color: '#ffffff', flexShrink: 1 },
-    headerSub: { fontSize: 12, color: '#94a3b8', lineHeight: 18, maxWidth: 560 },
+    headerTitle: { fontSize: 20, fontFamily: typography.bold, color: text, flexShrink: 1 },
+    headerSub: { fontSize: 12, color: muted, lineHeight: 18, maxWidth: 560 },
     openBtn: {
       alignSelf: 'flex-start',
       backgroundColor: '#059669',
@@ -312,7 +312,7 @@ export const SupportSafetyScreen: React.FC = () => {
           <View style={styles.headerInner}>
             <View style={{ gap: 4 }}>
               <View style={styles.headerTitleRow}>
-                <Icon name="shield_with_heart" size={22} color="#34d399" />
+                <Icon name="shield_with_heart" size={22} color="#059669" />
                 <Text style={styles.headerTitle}>Safety, Dispute & Support Center</Text>
               </View>
               <Text style={styles.headerSub}>

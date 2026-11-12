@@ -23,6 +23,10 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 /** Current Supabase session (used to attach Bearer tokens to admin API calls). */
 export async function getCurrentSession(): Promise<Session | null> {
   if (!supabase) return null;
@@ -62,17 +66,22 @@ export async function verifyAdminAccess(): Promise<
     return { ok: false, error: 'Could not reach the server to verify access.', reason: 'network' };
   }
 
+  const readError = async (fallback: string) => {
+    const body = await res.json().catch(() => ({}));
+    const msg = (body as { error?: string }).error;
+    return typeof msg === 'string' && msg.trim() ? msg : fallback;
+  };
+
   if (res.status === 401) {
-    return { ok: false, error: 'Your session has expired. Sign in again.', reason: 'unauthenticated' };
+    return { ok: false, error: await readError('Your session has expired. Sign in again.'), reason: 'unauthenticated' };
   }
   if (res.status === 403) {
-    const body = await res.json().catch(() => ({}));
-    const message = (body as { error?: string }).error ?? 'Admin access required.';
+    const message = await readError('Admin access required.');
     const suspended = /suspend/i.test(message);
     return { ok: false, error: message, reason: suspended ? 'suspended' : 'not_admin' };
   }
   if (!res.ok) {
-    return { ok: false, error: `Access verification failed (${res.status}).`, reason: 'network' };
+    return { ok: false, error: await readError(`Access verification failed (${res.status}).`), reason: 'network' };
   }
 
   const admin = (await res.json()) as AdminIdentity;
@@ -86,11 +95,14 @@ export async function verifyAdminAccess(): Promise<
  */
 export async function signInAsAdmin(email: string, password: string): Promise<AdminSignInResult> {
   if (!supabase) return { ok: false, error: 'Supabase is not configured.', reason: 'not_configured' };
-  if (!isValidEmail(email)) {
+
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedPassword = password;
+  if (!isValidEmail(normalizedEmail)) {
     return { ok: false, error: 'Enter a valid email address.', reason: 'invalid_credentials' };
   }
 
-  const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+  const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password: normalizedPassword });
   if (error) {
     const msg = error.message ?? '';
     const code = error.code ?? '';
@@ -105,29 +117,42 @@ export async function signInAsAdmin(email: string, password: string): Promise<Ad
       lower.includes('invalid login') ||
       lower.includes('invalid credentials') ||
       code === 'invalid_credentials';
-
     if (invalid) {
       return {
         ok: false,
-        error: 'Incorrect email or password.',
+        error: 'Incorrect email or password, or this account does not exist yet. Create/sign up the user in Supabase Auth with this exact email and password, then try again.',
         reason: 'invalid_credentials',
       };
     }
+
+    if (lower.includes('email not confirmed') || code === 'email_not_confirmed') {
+      return {
+        ok: false,
+        error: 'Email is not confirmed. Confirm this user in Supabase Auth (or disable email confirmation) and try again.',
+        reason: 'invalid_credentials',
+      };
+    }
+
+    if (lower.includes('too many requests') || error.status === 429) {
+      return { ok: false, error: 'Too many sign-in attempts. Wait a moment and try again.', reason: 'network' };
+    }
+
     return {
       ok: false,
-      error: msg || 'Sign-in failed.',
+      error: msg || 'Sign-in failed. Check network/Supabase configuration.',
       reason: 'network',
     };
   }
 
   const verification = await verifyAdminAccess();
-  if (!verification.ok) {
-    // Not an admin (or suspended): end the session immediately so an ordinary
-    // marketplace session is not left active inside the admin app.
-    await supabase.auth.signOut().catch(() => {});
+  if ('ok' in verification && verification.ok) return { ok: true };
+  // Not an admin (or suspended): end the session immediately so an ordinary
+  // marketplace session is not left active inside the admin app.
+  await supabase.auth.signOut().catch(() => {});
+  if ('error' in verification && 'reason' in verification) {
     return { ok: false, error: verification.error, reason: verification.reason };
   }
-  return { ok: true };
+  return { ok: false, error: 'Access denied.', reason: 'not_admin' };
 }
 
 /** Real sign-out: clears the Supabase session and all local auth state. */

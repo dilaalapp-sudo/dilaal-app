@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AdminSidebar } from '../components/AdminSidebar';
 import { AdminHeader } from '../components/AdminHeader';
+import { CommandPalette } from '../components/CommandPalette';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -43,12 +44,24 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   return (
-    <div className="flex-1 flex flex-col h-full w-full bg-surface text-on-surface">
+    <div className="flex-1 flex flex-col h-full w-full bg-background text-on-surface">
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Desktop offset mirrors the fixed sidebar width (collapsed or full). */}
-        <div className={`hidden sm:block shrink-0 transition-all duration-300 ${collapsed ? 'w-[76px]' : 'w-64'}`} />
+        <div className={`hidden sm:block shrink-0 transition-all duration-300 ease-out ${collapsed ? 'w-[76px]' : 'w-[260px]'}`} aria-hidden="true" />
         <AdminSidebar
           activeScreen={activeScreen}
           onSelect={onScreenChange}
@@ -58,18 +71,24 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           setMobileOpen={setMobileMenuOpen}
         />
 
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 bg-surface/50">
           <AdminHeader
             title={title}
             subtitle={subtitle}
             breadcrumbs={breadcrumbs}
             onBack={onBack}
             onMenuClick={() => setMobileMenuOpen(true)}
+            onOpenSearch={() => setPaletteOpen(true)}
           />
 
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24">{children}</main>
+          <main id="admin-main" className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 scroll-smooth" tabIndex={-1}>
+            <div className="max-w-[1400px] mx-auto w-full animate-in fade-in slide-in-from-bottom-2" style={{ animationDuration: '200ms' }}>
+              {children}
+            </div>
+          </main>
         </div>
       </div>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} onSelect={onScreenChange} />
     </div>
   );
 };

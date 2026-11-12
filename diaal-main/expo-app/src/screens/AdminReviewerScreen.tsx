@@ -64,19 +64,19 @@ const makeStyles = (isDark: boolean) => {
 
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: page },
-    header: { backgroundColor: '#064e3b', paddingHorizontal: 16, paddingVertical: 12 },
+    header: { paddingHorizontal: 16, paddingTop: 14 },
     headerInner: { width: '100%', maxWidth: 896, alignSelf: 'center', gap: 8 },
     headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
     headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
     headerTitleWrap: { flexShrink: 1 },
-    headerTitle: { fontSize: 14, fontFamily: typography.bold, color: '#ffffff' },
-    headerSub: { fontSize: 11, color: '#a7f3d0', lineHeight: 15 },
+    headerTitle: { fontSize: 14, fontFamily: typography.bold, color: text },
+    headerSub: { fontSize: 11, color: muted, lineHeight: 15 },
     roleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    roleLabel: { fontSize: 12, color: '#a7f3d0' },
+    roleLabel: { fontSize: 12, color: muted },
     roleChip: {
       paddingHorizontal: 8,
       paddingVertical: 4,
-      backgroundColor: '#065f46',
+      backgroundColor: isDark ? '#064e3b' : '#ecfdf5',
       borderRadius: 8,
       borderWidth: 1,
       borderColor: '#059669',
@@ -84,7 +84,7 @@ const makeStyles = (isDark: boolean) => {
     roleChipText: {
       fontSize: 12,
       fontFamily: typography.semibold,
-      color: '#ffffff',
+      color: isDark ? '#a7f3d0' : '#047857',
       textTransform: 'capitalize',
     },
     body: { width: '100%', maxWidth: 896, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 16 },
@@ -727,7 +727,7 @@ export const AdminReviewerScreen: React.FC = () => {
           <View style={styles.headerInner}>
             <View style={styles.headerRow}>
               <View style={styles.headerLeft}>
-                <Icon name="admin_panel_settings" size={20} color="#6ee7b7" />
+                <Icon name="admin_panel_settings" size={20} color="#059669" />
                 <View style={styles.headerTitleWrap}>
                   <Text style={styles.headerTitle}>Compliance & Reviewer Hub</Text>
                   <Text style={styles.headerSub}>

@@ -20,10 +20,16 @@ lout.txt
 .expo/
 .expo-shared/
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
 *.mobileprovision
+
+# Generated native projects (restored by `expo prebuild`)
+diaal-main/expo-app/android/
+diaal-main/expo-app/ios/
+local.properties
 
 # OS / editor
 .DS_Store

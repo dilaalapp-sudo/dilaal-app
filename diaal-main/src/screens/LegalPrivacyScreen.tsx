@@ -7,21 +7,38 @@ export const LegalPrivacyScreen: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [isDeleted, setIsDeleted] = useState(false);
+  const [dataError, setDataError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const handleExportData = () => {
-    const jsonStr = exportAccountData();
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `dilaal-user-data-export-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const handleExportData = async () => {
+    setDataError('');
+    setBusy(true);
+    try {
+      const jsonStr = await exportAccountData();
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `dilaal-user-data-export-${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setDataError('Could not export your data. Please try again.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleDeleteAccount = () => {
-    if (deleteConfirmationText !== 'DELETE') return;
-    deleteAccountData();
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmationText !== 'DELETE' || busy) return;
+    setDataError('');
+    setBusy(true);
+    const result = await deleteAccountData();
+    setBusy(false);
+    if (!result.success) {
+      setDataError(result.error || 'Could not delete the account. Please try again.');
+      return;
+    }
     setIsDeleted(true);
     setTimeout(() => {
       setShowDeleteConfirm(false);
@@ -165,11 +182,12 @@ export const LegalPrivacyScreen: React.FC = () => {
                 <p className="text-[11px] text-slate-500">Download a machine-readable JSON archive of your searches, inquiries, and preferences.</p>
               </div>
               <button
-                onClick={handleExportData}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs shrink-0 cursor-pointer flex items-center gap-1.5"
+                onClick={() => void handleExportData()}
+                disabled={busy}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs shrink-0 cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
               >
                 <span className="material-symbols-outlined text-sm">download</span>
-                <span>Download Archive</span>
+                <span>{busy ? 'Preparing…' : 'Download Archive'}</span>
               </button>
             </div>
 
@@ -226,6 +244,9 @@ export const LegalPrivacyScreen: React.FC = () => {
                     className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
+                {dataError ? (
+                  <p className="text-xs text-red-600 dark:text-red-400 mb-3">{dataError}</p>
+                ) : null}
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
@@ -234,15 +255,15 @@ export const LegalPrivacyScreen: React.FC = () => {
                     Cancel
                   </button>
                   <button
-                    onClick={handleDeleteAccount}
-                    disabled={deleteConfirmationText !== 'DELETE'}
+                    onClick={() => void handleDeleteAccount()}
+                    disabled={deleteConfirmationText !== 'DELETE' || busy}
                     className={`flex-1 py-2 text-xs font-bold rounded-xl text-white cursor-pointer ${
-                      deleteConfirmationText === 'DELETE'
+                      deleteConfirmationText === 'DELETE' && !busy
                         ? 'bg-red-600 hover:bg-red-700'
                         : 'bg-red-300 dark:bg-red-950 cursor-not-allowed'
                     }`}
                   >
-                    Purge All Data
+                    {busy ? 'Deleting…' : 'Purge All Data'}
                   </button>
                 </div>
               </div>

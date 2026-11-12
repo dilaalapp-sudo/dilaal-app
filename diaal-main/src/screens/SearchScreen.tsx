@@ -441,7 +441,7 @@ export const SearchScreen: React.FC = () => {
             </div>
 
             {/* Map Zero-State Overlay */}
-            {MAP_PINS.length === 0 && (
+            {false && (
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-surface-container-lowest/95 backdrop-blur-md px-5 py-4 rounded-3xl border border-outline-variant/30 shadow-xl text-center max-w-xs pointer-events-auto">
                 <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2.5">
                   <span className="material-symbols-outlined text-2xl">location_off</span>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type { User } from '@supabase/supabase-js';
 import {
   PropertyListing,
@@ -33,6 +33,7 @@ import {
   insertSupabaseAuditLog,
 } from '../lib/supabase';
 import { fetchMarketplaceCategories, type MarketplaceCategory } from '../lib/categories';
+import { registerWebPushToken } from '../lib/push';
 import {
   fetchFavoriteIds,
   addFavorite,
@@ -180,6 +181,7 @@ interface AppContextType {
   brokers: Broker[];
   chatMessages: ChatMessage[];
   chatLoading: boolean;
+  chatSending: boolean;
   hasMoreMessages: boolean;
   loadingOlderMessages: boolean;
   loadOlderMessages: () => Promise<void>;
@@ -233,8 +235,8 @@ interface AppContextType {
   registerWithEmail: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   authReady: boolean;
-  deleteAccountData: () => void;
-  exportAccountData: () => string;
+  deleteAccountData: () => Promise<{ success: boolean; error?: string }>;
+  exportAccountData: () => Promise<string>;
   supabaseStatus: SupabaseStatusState;
   refreshFromSupabase: () => Promise<void>;
   t: (key: string, fallback?: string) => string;
@@ -379,6 +381,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [brokers, setBrokers] = useState<Broker[]>([]);
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatSending, setChatSending] = useState(false);
   const [escrowDeal, setEscrowDeal] = useState<EscrowDeal>(EMPTY_ESCROW_DEAL);
   const [reports, setReports] = useState<ReportCase[]>([]);
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
@@ -424,11 +427,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       typeof profile?.role === 'string' && knownRoles.includes(profile.role as UserRole)
         ? (profile.role as UserRole)
         : undefined;
-    const metadataRole =
-      typeof metadata.role === 'string' && knownRoles.includes(metadata.role as UserRole)
-        ? (metadata.role as UserRole)
-        : undefined;
-    const resolvedRole = profileRole ?? metadataRole ?? 'buyer';
+    // Role is server-owned (profiles row). Never trust client-set auth metadata.
+    const resolvedRole = profileRole ?? 'buyer';
 
     setAuthUserId(user.id);
     setCurrentUser({
@@ -501,6 +501,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setBrokers(remoteBrokers || []);
         setReports(remoteReports || []);
         setAuditLogs(remoteAuditLogs || []);
+        // Check saved search alerts against newly fetched listings
+        void checkSavedSearchMatches(remoteListings || []);
       } else {
         setSupabaseStatus({
           connected: false,
@@ -542,6 +544,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         () => {
           fetchSupabaseListings().then((data) => {
             setListings(data || []);
+            void checkSavedSearchMatches(data || []);
           });
         }
       )
@@ -573,6 +576,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!cancelled && applied.success) {
             setCurrentScreen('home');
             setActiveTab('home');
+            // Register web push subscription for authenticated users
+            void registerWebPushToken(data.session.user.id);
           }
         }
       } finally {
@@ -587,9 +592,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     restoreSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') {
         refreshFromSupabase();
+        if (session?.user) {
+          void registerWebPushToken(session.user.id);
+        }
       }
       if (event === 'PASSWORD_RECOVERY') {
         setCurrentScreen('reset-password');
@@ -781,6 +789,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     audioOrigin?: string;
   }) => {
     const senderRole = opts.senderRole ?? 'user';
+    if (chatSending) return;
     const tempId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const localMessage: ChatMessage = {
       id: tempId,
@@ -797,6 +806,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Render instantly; swap in the saved row once Supabase confirms it so a
     // slow mobile connection never makes the send feel stuck.
+    setChatSending(true);
     appendUnique(localMessage);
 
     const conversationId = activeConversationIdRef.current;
@@ -816,8 +826,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       audioOrigin: opts.audioOrigin,
     });
     if (inserted) {
+      setChatSending(false);
       setChatMessages((prev) => prev.filter((m) => m.id !== tempId));
       appendUnique(inserted);
+    } else {
+      setChatSending(false);
     }
   };
 
@@ -955,10 +968,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (conversation) {
             setActiveConversation(conversation.id);
           } else {
+            // Could not open (e.g. own broker profile). Go back.
             setChatLoading(false);
+            setActiveTab('home');
+            setCurrentScreen('home');
           }
         } else {
           setChatLoading(false);
+          setActiveTab('home');
+          setCurrentScreen('home');
         }
       }
     }
@@ -1636,36 +1654,122 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void deleteSavedSearchById(id);
   };
 
-  const deleteAccountData = () => {
+  // Saved Search Alert match engine: checks new listings against saved searches
+  // and creates notifications when a match is found (notifyOnMatch enabled).
+  const checkSavedSearchMatches = useCallback(
+    (newListings: PropertyListing[]) => {
+      if (!authUserId || savedSearches.length === 0) return;
+
+      const activeSearches = savedSearches.filter((s) => s.notifyOnMatch);
+      if (activeSearches.length === 0) return;
+
+      const newNotifications: AppNotification[] = [];
+
+      activeSearches.forEach((search) => {
+        newListings.forEach((listing) => {
+          if (listing.ownerId === authUserId) return;
+          if (search.category !== 'all' && listing.category !== search.category) return;
+          if (listing.countryCode !== search.countryCode) return;
+          if (listing.price < search.minPrice) return;
+          if (Number.isFinite(search.maxPrice) && listing.price > search.maxPrice) return;
+          if (
+            search.location &&
+            !listing.location.toLowerCase().includes(search.location.toLowerCase())
+          ) {
+            return;
+          }
+          if (search.query) {
+            const q = search.query.toLowerCase();
+            const haystack = `${listing.title} ${listing.description} ${listing.location}`.toLowerCase();
+            if (!haystack.includes(q)) return;
+          }
+
+          newNotifications.push({
+            id: `saved-search-match-${search.id}-${listing.id}-${Date.now()}`,
+            title: t('newMatchFound', 'New match for saved search'),
+            desc: `"${listing.title}" ${t('matchesYourSavedSearch', 'matches your saved search')}`,
+            time: 'Just now',
+            unread: true,
+          });
+        });
+      });
+
+      if (newNotifications.length > 0) {
+        setNotifications((prev) => [...newNotifications, ...prev]);
+      }
+    },
+    [authUserId, savedSearches, t]
+  );
+
+  const deleteAccountData = async (): Promise<{ success: boolean; error?: string }> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { success: false, error: 'Sign in before deleting your account.' };
+    try {
+      const response = await fetch('/api/account/purge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ confirmation: 'DELETE' }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { success?: boolean; error?: string };
+      if (!response.ok || !payload.success) {
+        return { success: false, error: payload.error || 'Could not delete the account. Please try again.' };
+      }
+    } catch {
+      return { success: false, error: 'Could not reach the server. Your account was not deleted.' };
+    }
+
+    await supabase.auth.signOut().catch(() => {});
     setFavorites({});
     setUserRole('guest');
+    setAuthUserId('');
     setCurrentUser({ name: '', email: '', role: 'guest', kycStatus: 'unverified' });
     setChatMessages([]);
     setReports([]);
     setSupportTickets([]);
-    setNotifications([
-      {
-        id: `notif-${Date.now()}`,
-        title: 'Account Data Purged',
-        desc: 'All locally stored user sessions and records have been deleted in compliance with GDPR and Google Play data safety policies.',
-        time: 'Just now',
-        unread: true,
-      },
-    ]);
+    setNotifications([]);
+    return { success: true };
   };
 
-  const exportAccountData = (): string => {
-    const data = {
+  const exportAccountData = async (): Promise<string> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id ?? authUserId;
+    const base = {
       exportTimestamp: new Date().toISOString(),
+      userId: uid,
+      email: session?.user?.email ?? '',
       userRole,
       language,
       currency,
-      favorites,
-      savedSearches,
-      supportTickets,
-      reportsSubmitted: reports,
     };
-    return JSON.stringify(data, null, 2);
+    if (!uid) {
+      return JSON.stringify({ ...base, favorites, savedSearches, supportTickets, reportsSubmitted: reports }, null, 2);
+    }
+    const [profile, listings, reportRows, conversations, tickets, searches, favs] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
+      supabase.from('listings').select('*').eq('owner_id', uid),
+      supabase.from('reports').select('*').eq('reporter_id', uid),
+      supabase.from('conversations').select('*').eq('buyer_id', uid),
+      supabase.from('support_tickets').select('*').eq('user_id', uid),
+      supabase.from('saved_searches').select('*').eq('user_id', uid),
+      supabase.from('favorites').select('*').eq('user_id', uid),
+    ]);
+    return JSON.stringify(
+      {
+        ...base,
+        profile: profile.data ?? null,
+        listings: listings.data ?? [],
+        reports: reportRows.data ?? [],
+        conversations: conversations.data ?? [],
+        supportTickets: tickets.data ?? [],
+        savedSearches: searches.data ?? [],
+        favorites: favs.data ?? [],
+      },
+      null,
+      2
+    );
   };
 
   const markNotificationsAsRead = () => {
@@ -1848,6 +1952,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         brokers,
         chatMessages,
         chatLoading,
+        chatSending,
         hasMoreMessages,
         loadingOlderMessages,
         loadOlderMessages,

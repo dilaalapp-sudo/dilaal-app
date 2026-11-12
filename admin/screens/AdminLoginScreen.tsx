@@ -23,8 +23,9 @@ export const AdminLoginScreen: React.FC = () => {
     setError(null);
     try {
       const result = await signIn(email, password);
-      if (!result.ok) {
+      if (result.ok === false) {
         setError(result.error);
+        return;
       }
     } catch {
       setError('Unexpected error. Please try again.');

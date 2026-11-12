@@ -235,6 +235,14 @@ export async function getOrCreateConversation(opts: {
 }): Promise<ConversationRow | null> {
   if (!opts.brokerId || !opts.buyerId) return null;
 
+  // Prevent self-chat: if the broker profile belongs to the same user, block.
+  const { data: broker } = await supabase
+    .from('brokers')
+    .select('owner_id')
+    .eq('id', opts.brokerId)
+    .maybeSingle();
+  if (broker?.owner_id && broker.owner_id === opts.buyerId) return null;
+
   // Only filter by listing when one is attached; directory chats reuse the
   // buyer's conversation with that broker instead of creating duplicates.
   const scoped = () => {
@@ -500,7 +508,8 @@ export async function fetchBrokerInbox(brokerId: string): Promise<InboxItem[]> {
       ? supabase.from('listings').select('id, title, image').in('id', listingIds)
       : Promise.resolve({ data: [] as { id: string; title: string; image: string | null }[] }),
     buyerIds.length
-      ? supabase.from('profiles').select('id, full_name').in('id', buyerIds)
+      // Two-column view: counterpart profiles never expose phone/email.
+      ? supabase.from('chat_profiles').select('id, full_name').in('id', buyerIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
     supabase
       .from('chat_messages')
@@ -535,19 +544,24 @@ export async function fetchBrokerInbox(brokerId: string): Promise<InboxItem[]> {
 
   return rows.map((row) => {
     const listing = row.listing_id ? listingMap.get(row.listing_id) : undefined;
+    const buyer = buyerMap.get(row.buyer_id);
     const last = lastByConversation.get(row.id);
+
+    // Skip self-conversations (broker chatting with themselves)
+    if (row.buyer_id === row.broker_id) return null;
+
     return {
       conversationId: row.id,
       listingId: row.listing_id,
+      buyerId: row.buyer_id,
       listingTitle: listing?.title || (row.listing_id ? 'Listing' : 'Direct message'),
       listingImage: listing?.image || '',
-      buyerId: row.buyer_id,
-      buyerName: buyerMap.get(row.buyer_id) || 'Buyer',
+      buyerName: buyer || 'Buyer',
       lastMessage: last?.body || 'No messages yet',
       lastAt: last ? formatTime(last.sent_at) : '',
       updatedAt: row.updated_at,
     };
-  });
+  }).filter(Boolean);
 }
 
 /** Every conversation a buyer has with brokers, newest activity first. */
@@ -610,6 +624,10 @@ export async function fetchBuyerInbox(buyerId: string): Promise<BuyerInboxItem[]
     const listing = row.listing_id ? listingMap.get(row.listing_id) : undefined;
     const broker = brokerMap.get(row.broker_id);
     const last = lastByConversation.get(row.id);
+
+    // Skip self-conversations (buyer chatting with themselves)
+    if (row.buyer_id === row.broker_id) return null;
+
     return {
       conversationId: row.id,
       listingId: row.listing_id,
@@ -622,7 +640,7 @@ export async function fetchBuyerInbox(buyerId: string): Promise<BuyerInboxItem[]
       lastAt: last ? formatTime(last.sent_at) : '',
       updatedAt: row.updated_at,
     };
-  });
+  }).filter(Boolean);
 }
 
 /** Refresh a conversation list when a new conversation or message arrives. */

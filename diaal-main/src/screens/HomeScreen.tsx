@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { categoryPresentation } from '../lib/categories';
 import { MatchmakerModal } from '../components/MatchmakerModal';
+import { MapView } from '../components/MapView';
 
 export const HomeScreen: React.FC = () => {
   const {
@@ -19,6 +20,7 @@ export const HomeScreen: React.FC = () => {
     setCurrentScreen,
     setSearchFilter,
     language,
+    selectedListingId,
     t,
   } = useApp();
 
@@ -78,6 +80,17 @@ export const HomeScreen: React.FC = () => {
               </button>
             </div>
           </form>
+        </section>
+
+        {/* Live Map with Clustering */}
+        <section className="px-3.5 sm:px-gutter pt-2 sm:pt-3 pb-1">
+          <MapView
+            listings={filteredFeatured.length > 0 ? filteredFeatured : listings.slice(0, 12)}
+            selectedListingId={selectedListingId}
+            onSelectListing={openListingDetails}
+            formatPrice={formatPrice}
+            height="420px"
+          />
         </section>
 
         {/* Horizontal Category Chips */}
@@ -377,124 +390,6 @@ export const HomeScreen: React.FC = () => {
             </button>
             <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-secondary-fixed/10 pointer-events-none blur-xl"></div>
           </div>
-        </section>
-
-        {/* Top Verified Dilaalo (Brokers) Story Row */}
-        <section className="pt-3 pb-2 flex flex-col gap-2.5">
-          <div className="px-3.5 sm:px-gutter flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-5 rounded-full bg-secondary-container"></div>
-              <div>
-                <h2 className="text-base font-bold text-primary tracking-tight">
-                  {t('brokerDirectoryTitle', 'Dilaalo Directory')}
-                </h2>
-                <p className="text-[11px] text-outline font-semibold">
-                  {t('brokerDirectorySub', 'Registered brokers on the platform')}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsDirectoryOpen(true)}
-              className="text-xs text-secondary font-bold flex items-center gap-0.5 hover:underline cursor-pointer"
-            >
-              <span>{t('directory', 'Directory')}</span>
-              <span className="material-symbols-outlined text-[16px] rtl:rotate-180">chevron_right</span>
-            </button>
-          </div>
-
-          {/* Broker Story Carousel */}
-          {brokers.length > 0 ? (
-            <div className="flex gap-2.5 sm:gap-3 overflow-x-auto px-3.5 sm:px-gutter no-scrollbar py-1">
-              {brokers.map((broker) => (
-                <div
-                  key={broker.id}
-                  className="w-[155px] sm:w-[170px] shrink-0 p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/20 shadow-sm flex flex-col items-center text-center relative group"
-                >
-                  <div
-                    className="relative w-14 h-14 sm:w-16 sm:h-16 mb-2 cursor-pointer"
-                    onClick={() => openBrokerProfile(broker.id)}
-                  >
-                    {broker.avatar ? (
-                      <img
-                        alt={broker.name}
-                        className="w-full h-full rounded-full object-cover shadow-md ring-2 ring-primary-fixed"
-                        src={broker.avatar}
-                      />
-                    ) : (
-                      <div className="w-full h-full rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-md text-base font-bold">
-                        {broker.name.split(' ').map((n) => n[0]).join('')}
-                      </div>
-                    )}
-                    {broker.verificationStatus === 'approved' && (
-                      <div className="absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary-container text-secondary-fixed flex items-center justify-center shadow-sm">
-                        <span
-                          className="material-symbols-outlined text-[12px] sm:text-[14px]"
-                          style={{ fontVariationSettings: "'FILL' 1" }}
-                        >
-                          verified
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <h3
-                    className="text-xs font-bold text-on-surface truncate w-full cursor-pointer hover:text-primary"
-                    onClick={() => openBrokerProfile(broker.id)}
-                  >
-                    {broker.name}
-                  </h3>
-                  {broker.coverage && (
-                    <p className="text-[10px] sm:text-[11px] text-outline truncate w-full">
-                      {broker.coverage}
-                    </p>
-                  )}
-
-                  {(broker.rating > 0 || broker.deals > 0) && (
-                    <div className="mt-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-xs text-on-surface">
-                      <span
-                        className="material-symbols-outlined text-[13px] text-secondary-container"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        star
-                      </span>
-                      {broker.rating > 0 && <span className="font-bold">{broker.rating}</span>}
-                      {broker.deals > 0 && <span className="text-outline text-[10px]">({broker.deals})</span>}
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => openChatWithBroker(broker.id)}
-                    className="mt-2.5 w-full py-1.5 rounded-lg bg-surface-container-high text-primary text-xs font-bold hover:bg-primary-container hover:text-on-primary transition-colors cursor-pointer"
-                  >
-                    {t('contact', 'Contact')}
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="mx-3.5 sm:px-gutter p-4 rounded-2xl bg-surface-container-lowest border border-outline-variant/15 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-surface-container flex items-center justify-center text-secondary">
-                  <span className="material-symbols-outlined text-[20px]">badge</span>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-on-surface">
-                    {t('brokerDirectoryTitle', 'Broker Directory')}
-                  </h4>
-                  <p className="text-[11px] text-on-surface-variant">
-                    {t('brokerDirectorySub', 'Registered broker profiles will appear here')}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsDirectoryOpen(true)}
-                className="px-3 py-1.5 rounded-lg bg-surface-container text-xs font-bold text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
-              >
-                {t('inspect', 'Inspect')}
-              </button>
-            </div>
-          )}
         </section>
 
         {/* Near You (Agagaarkaaga) Vertical Cards List */}

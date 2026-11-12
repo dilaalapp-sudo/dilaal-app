@@ -9,8 +9,9 @@ import {
   StyleSheet,
   Modal,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
-import MapView, { Marker, UrlTile, Region } from '../components/MapView';
+import MapView, { Marker, UrlTile, Region, type MapHandle } from '../components/MapView';
 import Slider from '@react-native-community/slider';
 import { useApp } from '../context/AppContext';
 import { categoryPresentation } from '../lib/categories';
@@ -55,7 +56,9 @@ export const SearchScreen: React.FC = () => {
     t,
   } = useApp();
   const colors = useColors();
-  const mapRef = useRef<MapView | null>(null);
+  const { width } = useWindowDimensions();
+  const gutter = width < 360 ? 12 : width >= 600 ? 24 : 14;
+  const mapRef = useRef<MapHandle | null>(null);
 
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [isSatellite, setIsSatellite] = useState(false);
@@ -246,7 +249,11 @@ export const SearchScreen: React.FC = () => {
       <View
         style={[
           styles.header,
-          { backgroundColor: colors.surface, borderBottomColor: colors.outlineVariant + '26' },
+          {
+            paddingHorizontal: gutter,
+            backgroundColor: colors.surface,
+            borderBottomColor: colors.outlineVariant + '26',
+          },
         ]}
       >
         <View style={styles.searchRow}>
@@ -473,38 +480,6 @@ export const SearchScreen: React.FC = () => {
             </View>
           </View>
 
-          {mapPins.length === 0 && (
-            <View style={styles.mapEmpty} pointerEvents="box-none">
-              <View
-                style={[
-                  styles.mapEmptyCard,
-                  { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant + '4D' },
-                ]}
-              >
-                <View style={[styles.mapEmptyIcon, { backgroundColor: colors.primary + '1A' }]}>
-                  <Icon name="location_off" size={24} color={colors.primary} />
-                </View>
-                <Text style={[styles.mapEmptyTitle, { color: colors.onSurface }]}>
-                  {t('noMapListings', 'No Properties Found on Map')}
-                </Text>
-                <Text style={[styles.mapEmptySub, { color: colors.onSurfaceVariant }]}>
-                  {t(
-                    'noMapListingsSub',
-                    'Listings with saved coordinates will appear here once they match your filters.'
-                  )}
-                </Text>
-                <Pressable
-                  onPress={() => setViewMode('list')}
-                  style={[styles.mapEmptyBtn, { backgroundColor: colors.primary }]}
-                >
-                  <Text style={[styles.mapEmptyBtnText, { color: colors.onPrimary }]}>
-                    {t('viewList', 'View Listings')}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-
           {activePinListing && (
             <View
               style={[
@@ -606,7 +581,7 @@ export const SearchScreen: React.FC = () => {
           )}
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.listContent, { paddingHorizontal: gutter }]} showsVerticalScrollIndicator={false}>
           <View style={styles.listHeader}>
             <Text style={[styles.listCount, { color: colors.onSurface }]}>
               {sortedListings.length} {t('featuredListings', 'properties')}
@@ -1119,7 +1094,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: {
     paddingHorizontal: 14,
-    paddingTop: 8,
+    paddingTop: 12,
     paddingBottom: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 6,
@@ -1166,13 +1141,6 @@ const styles = StyleSheet.create({
   mapBtn: { width: 40, height: 40, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', ...shadow.card },
   zoomBox: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', ...shadow.card },
   zoomBtn: { width: 40, height: 34, alignItems: 'center', justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
-  mapEmpty: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  mapEmptyCard: { width: 260, padding: 18, borderRadius: 20, borderWidth: 1, alignItems: 'center', gap: 6, ...shadow.floating },
-  mapEmptyIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  mapEmptyTitle: { fontSize: 12, fontFamily: typography.bold, textAlign: 'center' },
-  mapEmptySub: { fontSize: 11, textAlign: 'center', lineHeight: 16 },
-  mapEmptyBtn: { marginTop: 6, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 12 },
-  mapEmptyBtnText: { fontSize: 12, fontFamily: typography.bold },
   preview: { position: 'absolute', left: 12, right: 12, bottom: 16, borderRadius: 22, borderWidth: 1, padding: 10, gap: 8 },
   previewTop: { flexDirection: 'row', gap: 10 },
   previewImageWrap: { width: 96, height: 96, borderRadius: 16, overflow: 'hidden' },
@@ -1194,7 +1162,7 @@ const styles = StyleSheet.create({
   stepBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8 },
   stepText: { fontSize: 11, fontFamily: typography.semibold },
   saveFav: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  listContent: { padding: 14, gap: 14, paddingBottom: 90 },
+  listContent: { padding: 14, gap: 14, paddingBottom: 140 },
   listHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   listCount: { fontSize: 13, fontFamily: typography.bold },
   sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 12, maxWidth: 200 },
@@ -1229,7 +1197,7 @@ const styles = StyleSheet.create({
   resetBtnText: { fontSize: 12, fontFamily: typography.bold },
   loadMore: { marginTop: 12, paddingVertical: 12, borderRadius: 999, borderWidth: 1, alignItems: 'center' },
   loadMoreText: { fontSize: 12, fontFamily: typography.bold },
-  switchWrap: { position: 'absolute', bottom: 16, left: 0, right: 0, alignItems: 'center' },
+  switchWrap: { position: 'absolute', bottom: 104, left: 0, right: 0, alignItems: 'center' },
   switchBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: '#0f172a' },
   switchText: { color: '#ffffff', fontSize: 12, fontFamily: typography.bold },
   sortOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center', padding: 24 },

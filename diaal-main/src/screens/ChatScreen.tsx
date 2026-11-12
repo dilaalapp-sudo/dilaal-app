@@ -25,6 +25,7 @@ export const ChatScreen: React.FC = () => {
     acceptOffer,
     counterOffer,
     declineOffer,
+    chatSending,
     openListingDetails,
     setCurrentScreen,
     setSelectedBrokerId,
@@ -918,14 +919,14 @@ export const ChatScreen: React.FC = () => {
               </div>
 
               {/* Send Button */}
-              <button
-                type="submit"
-                disabled={!inputText.trim() && !isRecording}
-                className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm active:scale-95 transition-all shrink-0 cursor-pointer ${
-                  inputText.trim()
-                    ? 'bg-primary text-on-primary shadow-md hover:bg-primary-container'
-                    : 'bg-surface-container text-outline cursor-not-allowed'
-                }`}
+                <button
+                  type="submit"
+                  disabled={(!inputText.trim() && !isRecording) || chatSending}
+                  className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm active:scale-95 transition-all shrink-0 cursor-pointer ${
+                    inputText.trim() && !chatSending
+                      ? 'bg-primary text-on-primary shadow-md hover:bg-primary-container active:scale-98'
+                      : 'bg-surface-container text-outline cursor-not-allowed'
+                  }`}
                 title={t('sendBtn', 'Send message')}
               >
                 <span className="material-symbols-outlined text-[20px] rtl:rotate-180">send</span>

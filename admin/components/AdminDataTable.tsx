@@ -71,48 +71,50 @@ export const AdminDataTable = <T,>({
   const cardMeta = rest.filter((c) => !c.hideOnCard);
 
   return (
-    <div className={`bg-surface-container rounded-2xl border border-outline-variant/25 overflow-hidden ${className}`}>
+    <div className={`bg-surface-container-lowest rounded-2xl border border-outline-variant/20 overflow-hidden shadow-[var(--shadow-xs)] ${className}`}>
       {/* Mobile: cards */}
-      <div className="md:hidden divide-y divide-outline-variant/10">
+      <div className="md:hidden divide-y divide-outline-variant/10" role="list" aria-label="Data records">
         {data.map((row, i) => (
-          <div key={String((row as any)[rowKey] ?? i)} className="p-4 space-y-3">
-            <div className="text-sm text-on-surface">
+          <article key={String((row as any)[rowKey] ?? i)} className="p-4 space-y-3 hover:bg-surface-container/40 transition-colors" role="listitem">
+            <div className="text-sm text-on-surface font-medium">
               {primary.render ? primary.render(row) : (row as any)[primary.key]}
             </div>
             {cardMeta.length > 0 && (
-              <div className="space-y-1.5">
+              <dl className="space-y-2">
                 {cardMeta.map((col) => (
                   <div key={col.key} className="flex items-start justify-between gap-3">
-                    <span className="text-[10px] font-bold text-outline uppercase tracking-wider leading-5 shrink-0">
+                    <dt className="text-[10px] font-bold text-outline uppercase tracking-wider leading-5 shrink-0">
                       {col.label}
-                    </span>
-                    <span className="text-xs text-on-surface text-right min-w-0">
+                    </dt>
+                    <dd className="text-xs text-on-surface text-right min-w-0 m-0">
                       {col.render ? col.render(row) : (row as any)[col.key]}
-                    </span>
+                    </dd>
                   </div>
                 ))}
-              </div>
+              </dl>
             )}
-            {actions && <div className="flex flex-wrap gap-2 pt-1">{actions(row)}</div>}
-          </div>
+            {actions && <div className="flex flex-wrap gap-2 pt-1" role="group" aria-label="Row actions">{actions(row)}</div>}
+          </article>
         ))}
       </div>
 
       {/* Desktop: table */}
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left border-collapse" style={{ minWidth }}>
+          <caption className="sr-only">{emptyMessage === 'No data available' ? 'Data table' : emptyMessage}</caption>
           <thead>
-            <tr className="bg-surface-container/50 border-b border-outline-variant/20">
+            <tr className="bg-surface-container/60 border-b border-outline-variant/15">
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-4 ${dense ? 'py-2' : 'py-3'} text-[10px] font-bold text-outline uppercase tracking-wider whitespace-nowrap`}
+                  scope="col"
+                  className={`px-4 ${dense ? 'py-2.5' : 'py-3.5'} text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap`}
                 >
                   {col.label}
                 </th>
               ))}
               {actions && (
-                <th className={`px-4 ${dense ? 'py-2' : 'py-3'} text-[10px] font-bold text-outline uppercase tracking-wider whitespace-nowrap`}>
+                <th scope="col" className={`px-4 ${dense ? 'py-2.5' : 'py-3.5'} text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap`}>
                   Actions
                 </th>
               )}
@@ -120,18 +122,21 @@ export const AdminDataTable = <T,>({
           </thead>
           <tbody className="divide-y divide-outline-variant/10">
             {data.map((row, i) => (
-              <tr key={String((row as any)[rowKey] ?? i)} className="hover:bg-surface-container/30 transition-colors">
+              <tr
+                key={String((row as any)[rowKey] ?? i)}
+                className="group hover:bg-primary/[0.03] transition-colors duration-150 focus-within:bg-primary/[0.04]"
+              >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-4 ${dense ? 'py-2' : 'py-3'} text-sm text-on-surface align-middle ${col.className ?? ''}`}
+                    className={`px-4 ${dense ? 'py-2.5' : 'py-3.5'} text-sm text-on-surface align-middle ${col.className ?? ''}`}
                   >
                     {col.render ? col.render(row) : (row as any)[col.key]}
                   </td>
                 ))}
                 {actions && (
-                  <td className={`px-4 ${dense ? 'py-2' : 'py-3'} align-middle`}>
-                    <div className="flex items-center gap-1.5 whitespace-nowrap">{actions(row)}</div>
+                  <td className={`px-4 ${dense ? 'py-2.5' : 'py-3.5'} align-middle`}>
+                    <div className="flex items-center gap-1.5 whitespace-nowrap opacity-90 group-hover:opacity-100 transition-opacity">{actions(row)}</div>
                   </td>
                 )}
               </tr>

@@ -9,6 +9,10 @@ interface AdminHeaderProps {
   onBack?: () => void;
   onMenuClick?: () => void;
   showUser?: boolean;
+  /** Opens the command palette / global search */
+  onOpenSearch?: () => void;
+  /** Optional slot for additional actions */
+  actions?: React.ReactNode;
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
@@ -18,60 +22,92 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   onBack,
   onMenuClick,
   showUser = true,
+  onOpenSearch,
+  actions,
 }) => {
   const { admin } = useAdminAuth();
 
   return (
-    <div className="bg-surface-container/50 border-b border-outline-variant/25 sticky top-0 z-20 backdrop-blur bg-surface/80">
-      <div className="flex items-center justify-between px-4 sm:px-6 py-3">
-        <div className="flex items-center gap-3 min-w-0">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="p-2 text-outline hover:text-on-surface transition-colors rounded-lg hover:bg-surface-container-high"
-            >
-              <span className="material-symbols-outlined">arrow_back</span>
-            </button>
-          )}
+    <header className="bg-surface/80 backdrop-blur-xl border-b border-outline-variant/20 sticky top-0 z-20">
+      <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16 gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           {onMenuClick && (
             <button
+              type="button"
               onClick={onMenuClick}
-              className="p-2 text-outline hover:text-on-surface transition-colors rounded-lg hover:bg-surface-container-high md:hidden"
+              aria-label="Open navigation menu"
+              className="p-2 -ml-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg transition-colors md:hidden focus-visible:ring-2 focus-visible:ring-primary/50"
             >
-              <span className="material-symbols-outlined">menu</span>
+              <span className="material-symbols-outlined text-[22px]" aria-hidden="true">menu</span>
+            </button>
+          )}
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label="Go back"
+              className="p-2 -ml-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-primary/50"
+            >
+              <span className="material-symbols-outlined text-[20px]" aria-hidden="true">arrow_back</span>
             </button>
           )}
           <div className="min-w-0">
             {breadcrumbs && breadcrumbs.length > 0 && (
-              <nav className="flex items-center gap-1 text-[10px] text-outline mb-0.5" aria-label="Breadcrumb">
-                <span>Admin</span>
+              <nav className="flex items-center gap-1 text-[11px] text-on-surface-variant mb-0.5" aria-label="Breadcrumb">
+                <span className="font-medium">Admin</span>
                 {breadcrumbs.map((crumb, i) => (
                   <React.Fragment key={i}>
-                    <span className="material-symbols-outlined text-[12px]">chevron_right</span>
-                    <span className={i === breadcrumbs.length - 1 ? 'text-on-surface-variant font-semibold' : ''}>
+                    <span className="material-symbols-outlined text-[14px] text-outline" aria-hidden="true">chevron_right</span>
+                    <span
+                      className={i === breadcrumbs.length - 1 ? 'text-on-surface font-semibold' : 'font-medium'}
+                      aria-current={i === breadcrumbs.length - 1 ? 'page' : undefined}
+                    >
                       {crumb}
                     </span>
                   </React.Fragment>
                 ))}
               </nav>
             )}
-            <h2 className="text-sm font-bold text-on-surface truncate">{title}</h2>
-            {subtitle && <p className="text-[11px] text-outline truncate">{subtitle}</p>}
+            <h1 className="text-base sm:text-lg font-extrabold text-on-surface tracking-tight truncate">{title}</h1>
+            {subtitle && <p className="text-xs text-on-surface-variant truncate hidden sm:block">{subtitle}</p>}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {onOpenSearch && (
+            <button
+              type="button"
+              onClick={onOpenSearch}
+              aria-label="Open search (Ctrl+K)"
+              className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-outline-variant/30 bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container hover:border-outline-variant/50 transition-all shadow-[var(--shadow-xs)] focus-visible:ring-2 focus-visible:ring-primary/50"
+            >
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">search</span>
+              <span className="text-xs font-medium">Search...</span>
+              <kbd className="ml-2 hidden md:inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-container border border-outline-variant/20">Ctrl K</kbd>
+            </button>
+          )}
+          {onOpenSearch && (
+            <button
+              type="button"
+              onClick={onOpenSearch}
+              aria-label="Open search"
+              className="sm:hidden p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-primary/50"
+            >
+              <span className="material-symbols-outlined text-[22px]" aria-hidden="true">search</span>
+            </button>
+          )}
+          {actions}
           {showUser && admin && (
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-high border border-outline-variant/25">
-              <span className="text-[10px] font-medium text-on-surface-variant truncate max-w-[140px]">
+            <div className="hidden md:flex items-center gap-2.5 pl-3 pr-1.5 py-1 rounded-full bg-surface-container border border-outline-variant/20">
+              <span className="text-xs font-medium text-on-surface-variant truncate max-w-[160px]">
                 {admin.name || admin.email}
               </span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold border bg-primary-container text-on-primary border-primary/50">
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-primary/10 text-primary ring-1 ring-primary/20">
                 {admin.role}
               </span>
             </div>
           )}
         </div>
       </div>
-    </div>
+    </header>
   );
 };

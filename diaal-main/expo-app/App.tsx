@@ -7,10 +7,11 @@ import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_7
 import { AppProvider, useApp, TabId } from './src/context/AppContext';
 import { CallProvider } from './src/context/CallContext';
 import { Header } from './src/components/Header';
-import { BottomNav } from './src/components/BottomNav';
+import { FloatingTabBar } from './src/components/FloatingTabBar';
 import { NotificationsDrawer } from './src/components/NotificationsDrawer';
 import { Icon } from './src/components/Icon';
 import { useColors } from './src/theme';
+import { CONTENT_MAX_WIDTH } from './src/responsive';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
@@ -105,13 +106,12 @@ function MainAppContent() {
       const listingId = params.listing || (listingMatch ? decodeURIComponent(listingMatch[1]) : '');
       if (listingId) setPendingListingId(listingId);
 
-      const accessToken = params.access_token;
-      const refreshToken = params.refresh_token;
-      if (!accessToken || !refreshToken) return;
-      const { error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
+      // PKCE recovery: the link carries a single-use code bound to the
+      // code_verifier stored in this app, so a hijacked custom-scheme link
+      // cannot be exchanged by another app.
+      const code = params.code;
+      if (!code) return;
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
       if (!error) setCurrentScreen('reset-password');
     };
 
@@ -152,8 +152,9 @@ function MainAppContent() {
 
   // Keep the native status bar legible in both themes.
   useEffect(() => {
-    RNStatusBar.setBarStyle(isDarkMode ? 'light-content' : 'dark-content', true);
-    RNStatusBar.setBackgroundColor(currentScreen === 'onboarding' ? '#003527' : colors.surface, true);
+    const heroScreen = currentScreen !== 'onboarding' && currentScreen !== 'reset-password';
+    RNStatusBar.setBarStyle(heroScreen || isDarkMode ? 'light-content' : 'dark-content', true);
+    RNStatusBar.setBackgroundColor(heroScreen ? '#003527' : colors.surface, true);
   }, [isDarkMode, colors.surface, currentScreen]);
 
   if (!authReady) {
@@ -170,7 +171,7 @@ function MainAppContent() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.surface }]}>
-      <StatusBar style={currentScreen === 'onboarding' || isDarkMode ? 'light' : 'dark'} />
+      <StatusBar style={currentScreen !== 'onboarding' && currentScreen !== 'reset-password' ? 'light' : isDarkMode ? 'light' : 'dark'} />
 
       {currentScreen !== 'onboarding' && currentScreen !== 'reset-password' && (
         <Header
@@ -183,7 +184,12 @@ function MainAppContent() {
 
       <NotificationsDrawer />
 
-      <View style={[styles.main, { paddingBottom: currentScreen === 'onboarding' ? 0 : 0 }]}>
+      <View
+        style={[
+          styles.main,
+          { paddingBottom: currentScreen === 'onboarding' ? 0 : 0, maxWidth: CONTENT_MAX_WIDTH },
+        ]}
+      >
         {currentScreen === 'onboarding' && <OnboardingScreen />}
         {currentScreen === 'home' && <HomeScreen />}
         {currentScreen === 'search' && <SearchScreen />}
@@ -200,9 +206,10 @@ function MainAppContent() {
       </View>
 
       {currentScreen !== 'onboarding' && currentScreen !== 'reset-password' && (
-        <BottomNav
+        <FloatingTabBar
           activeTab={activeTab}
-          onTabChange={handleTabChange}
+          onTabChange={(tab) => handleTabChange(tab as TabId)}
+          onAddPress={() => handleTabChange('post')}
           unreadChatCount={unreadChatCount}
         />
       )}
@@ -257,7 +264,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  main: { flex: 1, minHeight: 0 },
+  main: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'center' },
   splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
   splashLogo: {
     width: 48,
@@ -268,3 +275,4 @@ const styles = StyleSheet.create({
   },
   fontSplash: { flex: 1, backgroundColor: '#faf8ff' },
 });
+

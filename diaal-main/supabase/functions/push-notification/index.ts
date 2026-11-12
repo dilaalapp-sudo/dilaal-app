@@ -54,6 +54,10 @@ Deno.serve(async (request) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
+  if (!Deno.env.get('SUPABASE_URL') || !Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
+    return new Response('Server misconfigured: missing Supabase credentials', { status: 500 });
+  }
+
   const { data: tokens, error } = await supabase
     .from('push_tokens')
     .select('expo_token')

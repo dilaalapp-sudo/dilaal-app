@@ -10,11 +10,13 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { Audio } from 'expo-av';
 import { uploadChatAttachment } from '../lib/storage';
 import { subscribeTyping } from '../lib/chat';
 import { useApp } from '../context/AppContext';
@@ -28,6 +30,31 @@ import type { ChatMessage } from '../types';
 
 const WAVE_HEIGHTS = [3, 5, 7, 4, 3, 6, 8, 5, 2, 6, 4, 7, 5, 3, 5, 4, 6, 3];
 
+// Mono 64 kbps AAC keeps a one-minute note around 480 KB.
+const RECORDING_OPTIONS: Audio.RecordingOptions = {
+  isMeteringEnabled: true,
+  android: {
+    extension: '.m4a',
+    outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+    audioEncoder: Audio.AndroidAudioEncoder.AAC,
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 64000,
+  },
+  ios: {
+    extension: '.m4a',
+    outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+    audioQuality: Audio.IOSAudioQuality.MEDIUM,
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 64000,
+  },
+  web: {
+    mimeType: 'audio/webm',
+    bitsPerSecond: 64000,
+  },
+};
+
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.surface },
@@ -35,7 +62,7 @@ const makeStyles = (colors: Palette) =>
     header: {
       backgroundColor: colors.surface,
       borderBottomWidth: 1,
-      borderBottomColor: colors.outlineVariant + '26',
+      borderBottomColor: colors.outlineVariant + '1F',
     },
     headerRow: {
       paddingHorizontal: 14,
@@ -43,32 +70,32 @@ const makeStyles = (colors: Palette) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      gap: 12,
+      gap: 10,
     },
-    identity: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 },
+    identity: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
     backBtn: {
-      width: 36,
-      height: 36,
-      marginLeft: -4,
-      borderRadius: 12,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: colors.success + '14',
       alignItems: 'center',
       justifyContent: 'center',
     },
     avatarWrap: { position: 'relative' },
     avatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: 46,
+      height: 46,
+      borderRadius: 23,
       borderWidth: 2,
-      borderColor: colors.primary + '33',
+      borderColor: colors.success + '33',
     },
     avatarFallback: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: colors.surfaceContainerHigh,
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor: colors.primaryContainer,
       borderWidth: 2,
-      borderColor: colors.primary + '33',
+      borderColor: colors.success + '33',
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -84,31 +111,31 @@ const makeStyles = (colors: Palette) =>
       borderColor: colors.surface,
     },
     nameBlock: { flexShrink: 1, gap: 1 },
-    nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    name: { fontSize: 14, fontFamily: typography.bold, color: colors.onSurface, flexShrink: 1 },
-    statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    status: { fontSize: 11, fontFamily: typography.bold },
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    name: { fontSize: 15, fontFamily: typography.extrabold, color: colors.onSurface, flexShrink: 1, letterSpacing: -0.2 },
+    statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    status: { fontSize: 11, fontFamily: typography.semibold },
     statusOnline: { color: colors.success },
     statusOffline: { color: colors.outline },
     title: { fontSize: 11, color: colors.onSurfaceVariant, flexShrink: 1 },
-    callRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
+    callRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
     callBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      backgroundColor: colors.surfaceContainer,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: colors.success + '14',
       borderWidth: 1,
-      borderColor: colors.outlineVariant + '33',
+      borderColor: colors.success + '26',
       alignItems: 'center',
       justifyContent: 'center',
     },
-    ribbonWrap: { paddingHorizontal: 14, paddingBottom: 8 },
+    ribbonWrap: { paddingHorizontal: 14, paddingBottom: 10 },
     ribbon: {
       backgroundColor: colors.surfaceContainerLowest,
-      borderRadius: 16,
+      borderRadius: 18,
       padding: 10,
       borderWidth: 1,
-      borderColor: colors.outlineVariant + '33',
+      borderColor: colors.outlineVariant + '26',
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -116,39 +143,45 @@ const makeStyles = (colors: Palette) =>
       ...shadow.card,
     },
     ribbonLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
-    ribbonImage: { width: 40, height: 40, borderRadius: 12 },
+    ribbonImage: { width: 46, height: 46, borderRadius: 14 },
     ribbonFallback: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: colors.surfaceContainer,
+      width: 46,
+      height: 46,
+      borderRadius: 14,
+      backgroundColor: colors.primaryContainer,
       alignItems: 'center',
       justifyContent: 'center',
     },
     ribbonBody: { flexShrink: 1, gap: 2 },
     ribbonTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    registry: { fontSize: 10, fontFamily: typography.bold, color: colors.primary, textTransform: 'uppercase' },
+    registry: {
+      fontSize: 9.5,
+      fontFamily: typography.bold,
+      color: colors.success,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
     location: { fontSize: 11, color: colors.onSurfaceVariant, flexShrink: 1 },
-    ribbonPrice: { fontSize: 12, fontFamily: typography.extrabold, color: colors.onSurface },
+    ribbonPrice: { fontSize: 13.5, fontFamily: typography.extrabold, color: colors.onSurface },
     ribbonMeta: { fontFamily: typography.sans, color: colors.onSurfaceVariant },
     inspectBtn: {
       paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 12,
-      backgroundColor: colors.primary,
+      paddingVertical: 7,
+      borderRadius: 999,
+      backgroundColor: colors.success,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
     },
-    inspectText: { fontSize: 12, fontFamily: typography.bold, color: colors.onPrimary },
-    stream: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 16, gap: 12, flexGrow: 1 },
+    inspectText: { fontSize: 11.5, fontFamily: typography.bold, color: '#ffffff' },
+    stream: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 130, gap: 12, flexGrow: 1 },
     protocol: {
       maxWidth: 448,
       width: '100%',
       alignSelf: 'center',
       backgroundColor: colors.surfaceContainerLow,
-      borderRadius: 16,
-      padding: 10,
+      borderRadius: 18,
+      padding: 12,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
@@ -156,23 +189,23 @@ const makeStyles = (colors: Palette) =>
       borderColor: colors.outlineVariant + '26',
     },
     protocolIcon: {
-      width: 32,
-      height: 32,
+      width: 34,
+      height: 34,
       borderRadius: 12,
       backgroundColor: colors.primaryContainer,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    protocolTitle: { fontSize: 12, fontFamily: typography.bold, color: colors.primary },
+    protocolTitle: { fontSize: 12, fontFamily: typography.bold, color: colors.success },
     protocolText: { fontSize: 11, color: colors.onSurfaceVariant, lineHeight: 15 },
     dateSep: { alignItems: 'center', justifyContent: 'center', marginVertical: 4 },
     datePill: {
       backgroundColor: colors.surfaceContainerHigh,
       borderRadius: 999,
       paddingHorizontal: 12,
-      paddingVertical: 2,
+      paddingVertical: 3,
     },
-    dateText: { fontSize: 10, fontFamily: typography.bold, color: colors.onSurfaceVariant },
+    dateText: { fontSize: 10, fontFamily: typography.semibold, color: colors.onSurfaceVariant },
     skeletonBlock: { height: 48, borderRadius: 16, backgroundColor: colors.surfaceContainerHigh },
     skeletonRow: { flexDirection: 'row' },
     empty: { paddingVertical: 48, paddingHorizontal: 16, alignItems: 'center', gap: 4 },
@@ -194,21 +227,22 @@ const makeStyles = (colors: Palette) =>
       maxWidth: 320,
       marginTop: 4,
     },
-    brokerCol: { maxWidth: '88%', alignSelf: 'flex-start', gap: 8 },
+    brokerCol: { maxWidth: '86%', alignSelf: 'flex-start', gap: 8 },
     brokerBubble: {
       backgroundColor: colors.surfaceContainerLowest,
-      borderRadius: 16,
-      borderTopLeftRadius: 4,
-      padding: 12,
+      borderRadius: 18,
+      borderTopLeftRadius: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
       borderWidth: 1,
-      borderColor: colors.outlineVariant + '33',
+      borderColor: colors.outlineVariant + '26',
       gap: 4,
       ...shadow.card,
     },
     brokerSender: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    brokerSenderText: { fontSize: 11, fontFamily: typography.bold, color: colors.primary },
-    brokerText: { fontSize: 13, lineHeight: 19, color: colors.onSurface },
-    brokerTime: { fontSize: 10, color: colors.outline, alignSelf: 'flex-end', marginTop: 2 },
+    brokerSenderText: { fontSize: 10.5, fontFamily: typography.bold, color: colors.success },
+    brokerText: { fontSize: 13.5, lineHeight: 20, color: colors.onSurface },
+    brokerTime: { fontSize: 9.5, color: colors.outline, alignSelf: 'flex-end', marginTop: 2 },
     offerCard: {
       backgroundColor: colors.surfaceContainerLowest,
       borderRadius: 24,
@@ -351,15 +385,16 @@ const makeStyles = (colors: Palette) =>
       gap: 6,
     },
     declineText: { fontSize: 12, fontFamily: typography.bold, color: colors.onSurfaceVariant },
-    userCol: { maxWidth: '88%', alignSelf: 'flex-end', alignItems: 'flex-end', gap: 6 },
+    userCol: { maxWidth: '86%', alignSelf: 'flex-end', alignItems: 'flex-end', gap: 6 },
     userBubble: {
       backgroundColor: colors.primary,
-      borderRadius: 16,
-      borderTopRightRadius: 4,
-      padding: 12,
+      borderRadius: 18,
+      borderTopRightRadius: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
       ...shadow.card,
     },
-    userText: { fontSize: 13, lineHeight: 19, color: colors.onPrimary },
+    userText: { fontSize: 13.5, lineHeight: 20, color: colors.onPrimary },
     userMeta: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -367,15 +402,26 @@ const makeStyles = (colors: Palette) =>
       gap: 4,
       marginTop: 4,
     },
-    userTime: { fontSize: 10, color: colors.primaryFixed },
+    userTime: { fontSize: 9.5, color: colors.onPrimary, opacity: 0.72 },
     voiceBubble: {
       backgroundColor: colors.primary,
-      borderRadius: 16,
-      borderTopRightRadius: 4,
+      borderRadius: 18,
+      borderTopRightRadius: 6,
       padding: 12,
       gap: 8,
       width: 288,
       ...shadow.floating,
+    },
+    voiceBubbleIncoming: {
+      backgroundColor: colors.surfaceContainerLowest,
+      borderTopRightRadius: 18,
+      borderTopLeftRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.outlineVariant + '26',
+      shadowColor: 'transparent',
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      elevation: 0,
     },
     voiceRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     playBtn: {
@@ -387,10 +433,11 @@ const makeStyles = (colors: Palette) =>
       justifyContent: 'center',
     },
     waveRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 24, paddingHorizontal: 4 },
-    waveBar: { width: 4, borderRadius: 2, backgroundColor: colors.primaryFixed },
-    waveBarActive: { backgroundColor: colors.secondaryContainer },
+    waveBar: { width: 4, borderRadius: 2, backgroundColor: colors.onPrimary, opacity: 0.45 },
+    waveBarActive: { backgroundColor: colors.secondaryContainer, opacity: 1 },
     waveMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    waveTime: { fontSize: 10, fontFamily: typography.semibold, color: colors.primaryFixed },
+    waveTime: { fontSize: 10, fontFamily: typography.semibold, color: colors.onPrimary, opacity: 0.8 },
+    waveTimeIncoming: { color: colors.onSurfaceVariant },
     waveLabel: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     voiceFooter: {
       flexDirection: 'row',
@@ -400,18 +447,21 @@ const makeStyles = (colors: Palette) =>
       borderTopWidth: 1,
       borderTopColor: colors.onPrimary + '33',
     },
-    voiceFooterText: { fontSize: 10, color: colors.primaryFixed },
+    voiceFooterIncoming: { borderTopColor: colors.outlineVariant + '33' },
+    voiceFooterText: { fontSize: 10, color: colors.onPrimary, opacity: 0.8 },
+    voiceFooterTextIncoming: { color: colors.onSurfaceVariant },
     attachmentBubble: {
       width: 264,
       backgroundColor: colors.surfaceContainerLowest,
-      borderRadius: 16,
-      borderTopRightRadius: 4,
+      borderRadius: 18,
+      borderTopRightRadius: 6,
       padding: 8,
       borderWidth: 1,
-      borderColor: colors.outlineVariant + '33',
+      borderColor: colors.outlineVariant + '26',
       gap: 8,
       ...shadow.card,
     },
+    attachmentBubbleIncoming: { borderTopRightRadius: 18, borderTopLeftRadius: 6 },
     attachmentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     attachmentTile: {
       width: '47%',
@@ -420,6 +470,7 @@ const makeStyles = (colors: Palette) =>
       overflow: 'hidden',
       backgroundColor: colors.surfaceContainer,
     },
+    attachmentTileSingle: { width: '100%', aspectRatio: 4 / 3 },
     attachmentTileImage: { width: '100%', height: '100%' },
     attachmentTileFallback: {
       flex: 1,
@@ -454,89 +505,92 @@ const makeStyles = (colors: Palette) =>
     composerSection: {
       backgroundColor: colors.surface,
       borderTopWidth: 1,
-      borderTopColor: colors.outlineVariant + '33',
+      borderTopColor: colors.outlineVariant + '26',
       paddingHorizontal: 12,
-      paddingTop: 8,
-      gap: 8,
+      paddingTop: 10,
+      gap: 10,
     },
     drawer: {
       backgroundColor: colors.surfaceContainerLowest,
-      borderRadius: 16,
+      borderRadius: 18,
       padding: 10,
       borderWidth: 1,
-      borderColor: colors.outlineVariant + '33',
+      borderColor: colors.outlineVariant + '26',
       flexDirection: 'row',
       gap: 8,
       ...shadow.card,
     },
     drawerItem: {
       flex: 1,
-      borderRadius: 12,
-      paddingVertical: 8,
+      borderRadius: 14,
+      paddingVertical: 10,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 4,
+      gap: 5,
       backgroundColor: colors.surfaceContainerLow,
     },
     drawerIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    drawerLabel: { fontSize: 10.5, fontFamily: typography.semibold, color: colors.onSurface },
+    inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+    plusBtn: {
       width: 40,
       height: 40,
       borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    drawerLabel: { fontSize: 11, fontFamily: typography.semibold, color: colors.onSurface },
-    inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    plusBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
       borderWidth: 1,
       flexShrink: 0,
+      marginBottom: 1,
     },
     plusBtnOpen: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
+      backgroundColor: colors.success,
+      borderColor: colors.success,
       transform: [{ rotate: '45deg' }],
     },
     plusBtnClosed: {
-      backgroundColor: colors.surfaceContainer,
+      backgroundColor: colors.surfaceContainerLow,
       borderColor: colors.outlineVariant + '33',
     },
     inputBox: {
       flex: 1,
       backgroundColor: colors.surfaceContainerLowest,
-      borderRadius: 16,
+      borderRadius: 22,
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-end',
       paddingHorizontal: 14,
       paddingVertical: 4,
       borderWidth: 1,
       borderColor: colors.outlineVariant + '40',
+      ...shadow.card,
     },
-    input: { flex: 1, fontSize: 13, color: colors.onSurface, paddingVertical: 8, maxHeight: 96 },
+    input: { flex: 1, fontSize: 13.5, color: colors.onSurface, paddingVertical: 9, maxHeight: 96 },
     micBtn: {
       width: 32,
       height: 32,
-      borderRadius: 12,
+      borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
       marginLeft: 6,
+      marginBottom: 5,
     },
     micIdle: { backgroundColor: colors.surfaceContainer },
     micActive: { backgroundColor: '#ef4444' },
     sendBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 16,
+      width: 42,
+      height: 42,
+      borderRadius: 21,
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
       ...shadow.card,
     },
-    sendActive: { backgroundColor: colors.primary },
+    sendActive: { backgroundColor: colors.success },
     sendIdle: { backgroundColor: colors.surfaceContainer, shadowOpacity: 0, elevation: 0 },
     noBroker: {
       flex: 1,
@@ -723,11 +777,12 @@ export const ChatScreen: React.FC = () => {
   const relatedListing = listings.find((l) => l.id === selectedListingId);
 
   const [inputText, setInputText] = useState('');
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [audioPlaybackSecs, setAudioPlaybackSecs] = useState(0);
-  const [playingDuration, setPlayingDuration] = useState(0);
+  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [playbackSecs, setPlaybackSecs] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSecs, setRecordSecs] = useState(0);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
   const [isAttachmentDrawerOpen, setIsAttachmentDrawerOpen] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<{ title: string; image: string } | null>(
     null
@@ -774,12 +829,6 @@ export const ChatScreen: React.FC = () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const parseDuration = (value?: string) => {
-    if (!value) return 0;
-    const [m, s] = value.split(':').map(Number);
-    return (Number.isFinite(m) ? m : 0) * 60 + (Number.isFinite(s) ? s : 0);
-  };
-
   useEffect(() => {
     const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
     return () => clearTimeout(timer);
@@ -792,22 +841,15 @@ export const ChatScreen: React.FC = () => {
   }, [activeConversationId, chatMessages.length]);
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
-    if (isPlayingAudio) {
-      interval = setInterval(() => {
-        setAudioPlaybackSecs((prev) => {
-          if (playingDuration > 0 && prev >= playingDuration) {
-            setIsPlayingAudio(false);
-            return 0;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-    }
     return () => {
-      if (interval) clearInterval(interval);
+      void soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
+      if (recordingRef.current) {
+        void recordingRef.current.stopAndUnloadAsync().catch(() => {});
+        recordingRef.current = null;
+      }
     };
-  }, [isPlayingAudio, playingDuration]);
+  }, []);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | undefined;
@@ -827,14 +869,139 @@ export const ChatScreen: React.FC = () => {
     setInputText('');
   };
 
-  const handleStopRecording = () => {
-    setIsRecording(false);
-    if (recordSecs < 1) {
-      setRecordSecs(0);
+  const handleStartRecording = async () => {
+    if (Platform.OS === 'web') {
+      setAttachmentError(t('voiceWebOnly', 'Voice recording is available in the installed app.'));
       return;
     }
-    sendVoiceNote(formatDuration(recordSecs));
+    if (!activeConversationId) {
+      setAttachmentError(t('voiceNeedsChat', 'Open a conversation before recording.'));
+      return;
+    }
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          t('micPermission', 'Microphone needed'),
+          t('micPermissionBody', 'Allow microphone access to record a voice note.')
+        );
+        return;
+      }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+      });
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+        setPlayingMessageId(null);
+        setPlaybackSecs(0);
+      }
+      const recording = new Audio.Recording();
+      await recording.prepareToRecordAsync(RECORDING_OPTIONS);
+      await recording.startAsync();
+      recordingRef.current = recording;
+      setAttachmentError(null);
+      setRecordSecs(0);
+      setIsRecording(true);
+    } catch (err) {
+      console.warn('[DILAAL] recording start failed:', err);
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      setAttachmentError(t('voiceRecordFailed', 'Could not start recording.'));
+    }
+  };
+
+  const handleStopRecording = async () => {
+    const recording = recordingRef.current;
+    recordingRef.current = null;
+    setIsRecording(false);
+    if (!recording) return;
+
+    let uri: string | null = null;
+    let durationMs = recordSecs * 1000;
+    try {
+      const status = await recording.getStatusAsync();
+      if (status.durationMillis) durationMs = status.durationMillis;
+      await recording.stopAndUnloadAsync();
+      uri = recording.getURI();
+    } catch (err) {
+      console.warn('[DILAAL] recording stop failed:', err);
+    }
+    await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
     setRecordSecs(0);
+
+    const secs = Math.round(durationMs / 1000);
+    if (!uri || secs < 1) return;
+    if (!activeConversationId) {
+      setAttachmentError(t('voiceNeedsChat', 'Open a conversation before recording.'));
+      return;
+    }
+
+    setUploadingAttachment(true);
+    setAttachmentError(null);
+    const uploaded = await uploadChatAttachment(uri, activeConversationId, 'audio/m4a');
+    setUploadingAttachment(false);
+    if (uploaded.error || !uploaded.path) {
+      setAttachmentError(uploaded.error || t('voiceUploadFailed', 'Voice note upload failed.'));
+      return;
+    }
+    sendVoiceNote(formatDuration(secs), {
+      storagePath: uploaded.path,
+      url: uri,
+      mimeType: 'audio/m4a',
+    });
+  };
+
+  const toggleVoicePlayback = async (msg: ChatMessage) => {
+    const audioAttachment = msg.attachments?.find((att) => att.type === 'audio');
+    const uri = audioAttachment?.url;
+
+    if (playingMessageId === msg.id) {
+      await soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
+      setPlayingMessageId(null);
+      setPlaybackSecs(0);
+      return;
+    }
+
+    await soundRef.current?.unloadAsync().catch(() => {});
+    soundRef.current = null;
+    setPlayingMessageId(null);
+    setPlaybackSecs(0);
+
+    if (!uri) {
+      setAttachmentError(
+        t('voiceMissing', 'Original voice audio is not available for this message.')
+      );
+      return;
+    }
+
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true },
+        (status) => {
+          if (!status.isLoaded) return;
+          if (typeof status.positionMillis === 'number') {
+            setPlaybackSecs(Math.floor(status.positionMillis / 1000));
+          }
+          if (status.didJustFinish) {
+            if (soundRef.current) {
+              void soundRef.current.unloadAsync().catch(() => {});
+              soundRef.current = null;
+            }
+            setPlayingMessageId(null);
+            setPlaybackSecs(0);
+          }
+        }
+      );
+      soundRef.current = sound;
+      setPlayingMessageId(msg.id);
+    } catch (err) {
+      console.warn('[DILAAL] voice playback failed:', err);
+      setAttachmentError(t('voicePlayFailed', 'Could not play this voice note.'));
+    }
   };
 
   const handleSendCounter = () => {
@@ -954,7 +1121,7 @@ export const ChatScreen: React.FC = () => {
         <View style={styles.offerHeader}>
           <View style={styles.offerHeaderLeft}>
             <View style={styles.offerIcon}>
-              <Icon name="verified_user" size={20} color={colors.onPrimary} />
+              <Icon name="verified_user" size={20} color={colors.onPrimaryContainer} />
             </View>
             <View style={{ flexShrink: 1 }}>
               <Text style={styles.offerTitle}>Purchase Offer</Text>
@@ -1071,27 +1238,19 @@ export const ChatScreen: React.FC = () => {
     );
   };
 
-  const renderVoiceNote = (msg: ChatMessage) => {
+  const renderVoiceNote = (msg: ChatMessage, incoming = false) => {
     if (!msg.isAudio) return null;
+    const isPlaying = playingMessageId === msg.id;
+    const hasAudio = Boolean(msg.attachments?.some((att) => att.type === 'audio' && att.url));
     return (
-      <View style={styles.voiceBubble}>
+      <View style={[styles.voiceBubble, incoming && styles.voiceBubbleIncoming]}>
         <View style={styles.voiceRow}>
           <Pressable
-            onPress={() => {
-              if (isPlayingAudio) {
-                setIsPlayingAudio(false);
-                return;
-              }
-              const duration = parseDuration(msg.audioDuration);
-              if (duration <= 0) return;
-              setPlayingDuration(duration);
-              setAudioPlaybackSecs(0);
-              setIsPlayingAudio(true);
-            }}
-            style={styles.playBtn}
+            onPress={() => void toggleVoicePlayback(msg)}
+            style={[styles.playBtn, !hasAudio && { opacity: 0.55 }]}
           >
             <Icon
-              name={isPlayingAudio ? 'pause' : 'play_arrow'}
+              name={isPlaying ? 'pause' : 'play_arrow'}
               size={24}
               color={colors.primary}
             />
@@ -1104,46 +1263,60 @@ export const ChatScreen: React.FC = () => {
                   key={i}
                   style={[
                     styles.waveBar,
-                    isPlayingAudio && styles.waveBarActive,
-                    { height: height * 2.8 },
+                    isPlaying && styles.waveBarActive,
+                    {
+                      height: height * 2.8,
+                      backgroundColor: isPlaying
+                        ? colors.secondaryContainer
+                        : incoming
+                        ? colors.primary
+                        : colors.onPrimary,
+                    },
                   ]}
                 />
               ))}
             </View>
             <View style={styles.waveMeta}>
-              <Text style={styles.waveTime}>
-                {isPlayingAudio ? formatDuration(audioPlaybackSecs) : msg.audioDuration || '—'}
+              <Text style={[styles.waveTime, incoming && styles.waveTimeIncoming]}>
+                {isPlaying ? formatDuration(playbackSecs) : msg.audioDuration || '—'}
               </Text>
               <View style={styles.waveLabel}>
-                <Icon name="mic" size={13} color={colors.primaryFixed} />
-                <Text style={styles.waveTime}>Voice Memo</Text>
+                <Icon name="mic" size={13} color={incoming ? colors.primary : colors.onPrimary} />
+                <Text style={[styles.waveTime, incoming && styles.waveTimeIncoming]}>
+                  Voice Memo
+                </Text>
               </View>
             </View>
           </View>
         </View>
 
-        <View style={styles.voiceFooter}>
-          <Text style={styles.voiceFooterText}>{msg.audioOrigin || t('voiceNote', 'Voice Note')}</Text>
+        <View style={[styles.voiceFooter, incoming && styles.voiceFooterIncoming]}>
+          <Text style={[styles.voiceFooterText, incoming && styles.voiceFooterTextIncoming]}>
+            {msg.audioOrigin || t('voiceNote', 'Voice Note')}
+          </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Text style={styles.voiceFooterText}>{msg.timestamp}</Text>
-            <Icon name="done_all" size={14} color={colors.primaryFixed} />
+            <Text style={[styles.voiceFooterText, incoming && styles.voiceFooterTextIncoming]}>
+              {msg.timestamp}
+            </Text>
+            <Icon name="done_all" size={14} color={incoming ? colors.primary : colors.onPrimary} />
           </View>
         </View>
       </View>
     );
   };
 
-  const renderAttachments = (msg: ChatMessage) => {
-    if (!msg.attachments) return null;
-    const count = msg.attachments.length;
+  const renderAttachments = (msg: ChatMessage, incoming = false) => {
+    const visualAttachments = msg.attachments?.filter((att) => att.type !== 'audio');
+    if (!visualAttachments || visualAttachments.length === 0) return null;
+    const count = visualAttachments.length;
     return (
-      <View style={styles.attachmentBubble}>
+      <View style={[styles.attachmentBubble, incoming && styles.attachmentBubbleIncoming]}>
         <View style={styles.attachmentGrid}>
-          {msg.attachments.map((att) => (
+          {visualAttachments.map((att) => (
             <Pressable
               key={att.id}
               onPress={() => setPreviewAttachment({ title: att.title, image: att.image || '' })}
-              style={styles.attachmentTile}
+              style={[styles.attachmentTile, count === 1 && styles.attachmentTileSingle]}
             >
               {att.image ? (
                 <Image source={{ uri: att.image }} style={styles.attachmentTileImage} />
@@ -1180,7 +1353,7 @@ export const ChatScreen: React.FC = () => {
     );
   };
 
-  const canSend = Boolean(inputText.trim()) || isRecording;
+  const canSend = Boolean(inputText.trim());
 
   return (
     <KeyboardAvoidingView
@@ -1197,7 +1370,7 @@ export const ChatScreen: React.FC = () => {
                 style={styles.backBtn}
                 accessibilityLabel="Back to chats"
               >
-                <Icon name="arrow_back" size={22} color={colors.onSurfaceVariant} />
+                <Icon name="arrow_back" size={20} color={colors.success} />
               </Pressable>
               <View style={styles.avatarWrap}>
                 {broker.avatar ? (
@@ -1260,7 +1433,7 @@ export const ChatScreen: React.FC = () => {
                 style={[styles.callBtn, Boolean(callSession) && { opacity: 0.4 }]}
                 accessibilityLabel={t('callBroker', 'Voice Call')}
               >
-                <Icon name="call" size={19} color={colors.primary} />
+                <Icon name="call" size={18} color={colors.success} />
               </Pressable>
               <Pressable
                 onPress={() => {
@@ -1278,7 +1451,7 @@ export const ChatScreen: React.FC = () => {
                 style={[styles.callBtn, Boolean(callSession) && { opacity: 0.4 }]}
                 accessibilityLabel={t('inspect', 'Live Video Inspection')}
               >
-                <Icon name="videocam" size={19} color={colors.primary} />
+                <Icon name="videocam" size={18} color={colors.success} />
               </Pressable>
             </View>
           </View>
@@ -1317,7 +1490,7 @@ export const ChatScreen: React.FC = () => {
                   style={styles.inspectBtn}
                 >
                   <Text style={styles.inspectText}>{t('inspect', 'Listing')}</Text>
-                  <Icon name="open_in_new" size={14} color={colors.onPrimary} />
+                  <Icon name="open_in_new" size={14} color="#ffffff" />
                 </Pressable>
               </View>
             </View>
@@ -1333,7 +1506,7 @@ export const ChatScreen: React.FC = () => {
         >
           <View style={styles.protocol}>
             <View style={styles.protocolIcon}>
-              <Icon name="gavel" size={17} color={colors.onPrimary} />
+              <Icon name="gavel" size={17} color={colors.onPrimaryContainer} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.protocolTitle}>
@@ -1404,9 +1577,15 @@ export const ChatScreen: React.FC = () => {
           ) : (
             chatMessages.map((msg) => {
               if (msg.sender === 'broker') {
+                const placeholder = /^(Attached Document:|Voice Memo \(Audio Transmission\))/.test(
+                  msg.text || ''
+                );
+                const showText =
+                  Boolean(msg.text) &&
+                  !((msg.isAudio || Boolean(msg.attachments?.length)) && placeholder);
                 return (
                   <View key={msg.id} style={styles.brokerCol}>
-                    {msg.text ? (
+                    {showText ? (
                       <View style={styles.brokerBubble}>
                         <View style={styles.brokerSender}>
                           <Text style={styles.brokerSenderText}>
@@ -1419,19 +1598,28 @@ export const ChatScreen: React.FC = () => {
                       </View>
                     ) : null}
 
+                    {renderVoiceNote(msg, true)}
+                    {renderAttachments(msg, true)}
                     {renderOfferCard(msg)}
                   </View>
                 );
               }
 
+              const placeholder = /^(Attached Document:|Voice Memo \(Audio Transmission\))/.test(
+                msg.text || ''
+              );
+              const showText =
+                Boolean(msg.text) &&
+                !((msg.isAudio || Boolean(msg.attachments?.length)) && placeholder);
+
               return (
                 <View key={msg.id} style={styles.userCol}>
-                  {msg.text ? (
+                  {showText ? (
                     <View style={styles.userBubble}>
                       <Text style={styles.userText}>{msg.text}</Text>
                       <View style={styles.userMeta}>
                         <Text style={styles.userTime}>{msg.timestamp}</Text>
-                        <Icon name="done_all" size={14} color={colors.primaryFixed} />
+                        <Icon name="done_all" size={14} color={colors.onPrimary} />
                       </View>
                     </View>
                   ) : null}
@@ -1444,7 +1632,7 @@ export const ChatScreen: React.FC = () => {
           )}
         </ScrollView>
 
-        <View style={[styles.composerSection, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+        <View style={[styles.composerSection, { paddingBottom: 100 }]}>
           {isAttachmentDrawerOpen ? (
             <View style={styles.drawer}>
               <Pressable onPress={() => void pickImage()} style={styles.drawerItem}>
@@ -1561,9 +1749,9 @@ export const ChatScreen: React.FC = () => {
               <Pressable
                 onPress={() => {
                   if (isRecording) {
-                    handleStopRecording();
+                    void handleStopRecording();
                   } else {
-                    setIsRecording(true);
+                    void handleStartRecording();
                   }
                 }}
                 style={[styles.micBtn, isRecording ? styles.micActive : styles.micIdle]}

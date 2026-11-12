@@ -46,23 +46,42 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <ToastContext.Provider value={{ toast, success, error }}>
       {children}
       {/* Toast viewport */}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm" role="status" aria-live="polite">
+      <div
+        className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"
+        role="region"
+        aria-label="Notifications"
+        aria-live="polite"
+        aria-relevant="additions"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
-            onClick={() => remove(t.id)}
-            className={`flex items-start gap-2 px-4 py-3 rounded-xl shadow-lg border text-sm cursor-pointer transition-all ${
+            role={t.kind === 'error' ? 'alert' : 'status'}
+            className={`pointer-events-auto flex items-start gap-3 px-4 py-3.5 rounded-xl shadow-[var(--shadow-lg)] border text-sm animate-in slide-in-from-bottom-2 fade-in backdrop-blur-sm ${
               t.kind === 'success'
-                ? 'bg-success-container text-on-success-container border-success/30'
+                ? 'bg-success-container/95 text-on-success-container border-success/20'
                 : t.kind === 'error'
-                  ? 'bg-error-container text-on-error-container border-error/30'
-                  : 'bg-surface-container border-outline-variant/40 text-on-surface'
+                  ? 'bg-error-container/95 text-on-error-container border-error/20'
+                  : 'bg-surface-container-lowest/95 border-outline-variant/30 text-on-surface'
             }`}
+            style={{ animationDuration: '200ms' }}
           >
-            <span className="material-symbols-outlined text-lg mt-0.5">
+            <span
+              className="material-symbols-outlined text-[20px] mt-0.5 shrink-0"
+              aria-hidden="true"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
               {t.kind === 'success' ? 'check_circle' : t.kind === 'error' ? 'error' : 'info'}
             </span>
-            <span>{t.message}</span>
+            <span className="flex-1 font-medium leading-snug">{t.message}</span>
+            <button
+              type="button"
+              onClick={() => remove(t.id)}
+              aria-label="Dismiss notification"
+              className="shrink-0 p-0.5 -mr-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-current/40"
+            >
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
+            </button>
           </div>
         ))}
       </div>

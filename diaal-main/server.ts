@@ -15,11 +15,10 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
 const PORT = 3000;
-const HOST = '0.0.0.0';
+const HOST = '127.0.0.1';
 
 function formatSupabaseUrl(urlOrRef?: string): string {
-  const fallback = 'https://usrqtgobuylkhwblpjnb.supabase.co';
-  if (!urlOrRef) return fallback;
+  if (!urlOrRef) throw new Error('VITE_SUPABASE_URL is required');
   const trimmed = urlOrRef.trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     return trimmed;
@@ -28,14 +27,12 @@ function formatSupabaseUrl(urlOrRef?: string): string {
 }
 
 function getValidAnonKey(key?: string): string {
-  const fallback =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzcnF0Z29idXlsa2h3Ymxwam5iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MTQwMjksImV4cCI6MjEwNzM5MDAyOX0.soM9c_X3MhpwOAtAXZMnYR8wKZSD-J3IB7aMipcRKpU';
-  if (!key) return fallback;
+  if (!key) throw new Error('VITE_SUPABASE_ANON_KEY is required');
   const trimmed = key.trim();
   if (trimmed.split('.').length === 3 && trimmed.length > 80) {
     return trimmed;
   }
-  return fallback;
+  throw new Error('Invalid VITE_SUPABASE_ANON_KEY format');
 }
 
 export const SUPABASE_URL = formatSupabaseUrl(process.env.VITE_SUPABASE_URL);
@@ -52,7 +49,114 @@ export const supabaseAdmin: SupabaseClient | null = SUPABASE_SERVICE_ROLE_KEY
     })
   : null;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (value: string): boolean => UUID_RE.test(value);
+// UUID or app_ref slug only. Rejects PostgREST filter metacharacters (commas,
+// parentheses, dots) so a path id cannot inject extra clauses into .or().
+const isSafeRef = (value: string): boolean => isUuid(value) || /^[A-Za-z0-9_-]+$/.test(value);
+
 app.use(express.json());
+
+// Security headers. The CSP must allow the Google Fonts origins the SPA loads
+// (Inter + Material Symbols); blocking them renders icon ligatures as raw text.
+// The Vite HMR websocket is dev-only and is omitted from production CSP.
+const isProdEnv = process.env.NODE_ENV === 'production';
+const devWsSources = isProdEnv ? '' : ' ws://localhost:24678 ws://127.0.0.1:24678';
+const CONTENT_SECURITY_POLICY = [
+  "frame-ancestors 'none'",
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: https:",
+  `connect-src 'self' https://usrqtgobuylkhwblpjnb.supabase.co https://*.supabase.co wss://*.supabase.co${devWsSources}`,
+].join('; ');
+
+app.use((_req: Request, res: Response, next: express.NextFunction) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+// CSRF-style Origin/Referer validation for state-changing API routes.
+// The SPA uses Bearer tokens in Authorization headers (not cookies), so
+// traditional cookie CSRF doesn't apply. Validating Origin/Referer blocks
+// cross-site form POSTs from malicious sites.
+const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const defaultAllowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
+const configuredAllowedOrigins = (process.env.CORS_ORIGIN ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const allowedOrigins = new Set([...defaultAllowedOrigins, ...configuredAllowedOrigins]);
+app.use((req, res, next) => {
+  if (!STATE_CHANGING_METHODS.has(req.method)) {
+    next();
+    return;
+  }
+  const origin = req.headers.origin;
+  const referer = req.headers.referer;
+  const requestOrigin = `${req.protocol}://${req.get('host')}`;
+
+  const isAllowedOrigin = (value?: string | string[]) => {
+    const v = Array.isArray(value) ? value[0] : value;
+    if (!v) return false;
+    return allowedOrigins.has(v) || v === requestOrigin;
+  };
+  const isAllowedReferer = (value?: string | string[]) => {
+    const v = Array.isArray(value) ? value[0] : value;
+    if (!v) return false;
+    if (v === requestOrigin || v.startsWith(`${requestOrigin}/`)) return true;
+    for (const allowed of allowedOrigins) {
+      if (v === allowed || v.startsWith(`${allowed}/`)) return true;
+    }
+    return false;
+  };
+
+  const isValid = isAllowedOrigin(origin) || isAllowedReferer(referer);
+  if (!isValid) {
+    res.status(403).json({ error: 'Cross-origin request blocked.' });
+    return;
+  }
+  next();
+});
+
+// Per-IP ceilings for the public API. In-memory is enough for a single server
+// process; it is not a substitute for a WAF. Auth routes get a tighter budget
+// because each hit can create or confirm an account.
+function makeRateLimit(max: number, message: string) {
+  const windowMs = 60_000;
+  const hits = new Map<string, { count: number; resetAt: number }>();
+  return (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+    const key = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const entry = hits.get(key);
+    if (!entry || entry.resetAt <= now) {
+      hits.set(key, { count: 1, resetAt: now + windowMs });
+      next();
+      return;
+    }
+    entry.count += 1;
+    if (entry.count > max) {
+      res.status(429).json({ error: message });
+      return;
+    }
+    next();
+  };
+}
+
+app.use('/api', makeRateLimit(120, 'Too many requests. Try again in a minute.'));
+app.use('/api/auth', makeRateLimit(10, 'Too many sign-in attempts. Try again in a minute.'));
+app.use('/api/admin', makeRateLimit(120, 'Too many admin requests. Try again in a minute.'));
 
 // In-memory data structures for server-side persistence & validation
 interface ServerAuditLog {
@@ -76,6 +180,14 @@ const auditLogs: ServerAuditLog[] = [
     timestamp: new Date().toISOString(),
   },
 ];
+
+// Unauthenticated demo routes also write here; cap the buffer so spamming them
+// cannot exhaust the process's memory.
+const AUDIT_LOG_LIMIT = 5000;
+function recordAudit(log: ServerAuditLog): void {
+  auditLogs.unshift(log);
+  if (auditLogs.length > AUDIT_LOG_LIMIT) auditLogs.length = AUDIT_LOG_LIMIT;
+}
 
 // Health & System Info Route
 app.get('/api/health', async (_req, res) => {
@@ -203,7 +315,7 @@ app.post('/api/listings', (req, res) => {
     details: `Submitted for cadastral audit with provisional registry ${generatedRegistry}`,
     timestamp: new Date().toISOString(),
   };
-  auditLogs.unshift(log);
+  recordAudit(log);
 
   res.status(201).json({
     success: true,
@@ -242,7 +354,7 @@ app.post('/api/verification/audit', (req, res) => {
     details: reviewerNotes || `Decision: ${decision}`,
     timestamp: new Date().toISOString(),
   };
-  auditLogs.unshift(log);
+  recordAudit(log);
 
   res.json({
     success: true,
@@ -275,7 +387,7 @@ app.post('/api/offers', (req, res) => {
     details: `Action: ${action}${proposedPrice ? ` | Price: $${proposedPrice}` : ''}${reason ? ` | Note: ${reason}` : ''}`,
     timestamp: new Date().toISOString(),
   };
-  auditLogs.unshift(log);
+  recordAudit(log);
 
   res.json({
     success: true,
@@ -303,7 +415,7 @@ app.post('/api/escrow/milestone', (req, res) => {
     details: evidenceNotes || `Milestone ${milestoneId} marked ${action || 'completed'}`,
     timestamp: new Date().toISOString(),
   };
-  auditLogs.unshift(log);
+  recordAudit(log);
 
   res.json({
     success: true,
@@ -333,7 +445,7 @@ app.post('/api/reports', (req, res) => {
     details: `Reason: ${reason} | ${description}`,
     timestamp: new Date().toISOString(),
   };
-  auditLogs.unshift(log);
+  recordAudit(log);
 
   res.status(201).json({
     success: true,
@@ -343,48 +455,81 @@ app.post('/api/reports', (req, res) => {
   });
 });
 
-// GDPR & Google Play Account Data Export
-app.post('/api/account/export', (req, res) => {
-  const { userId = 'user-current' } = req.body;
+// Verifies the caller's Supabase access token and returns their real identity.
+// Account export/purge act on the authenticated user only — never a client id.
+async function getBearerUser(req: Request): Promise<{ id: string; email: string } | null> {
+  if (!supabaseAdmin) return null;
+  const header = req.headers.authorization ?? '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token) return null;
+  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !data.user) return null;
+  return { id: data.user.id, email: data.user.email ?? '' };
+}
+
+// GDPR & Google Play Account Data Export — real rows for the authenticated user.
+app.post('/api/account/export', async (req: Request, res: Response) => {
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Account services are not configured on the server.' });
+  }
+  const user = await getBearerUser(req);
+  if (!user) return res.status(401).json({ error: 'Sign in to export your data.' });
+
+  const [profile, listings, reports, conversations, tickets, searches] = await Promise.all([
+    supabaseAdmin.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+    supabaseAdmin.from('listings').select('*').eq('owner_id', user.id),
+    supabaseAdmin.from('reports').select('*').eq('reporter_id', user.id),
+    supabaseAdmin.from('conversations').select('*').eq('buyer_id', user.id),
+    supabaseAdmin.from('support_tickets').select('*').eq('user_id', user.id),
+    supabaseAdmin.from('saved_searches').select('*').eq('user_id', user.id),
+  ]);
 
   res.json({
-    exportId: `exp-${Date.now()}`,
     exportedAt: new Date().toISOString(),
-    userId,
-    dataSummary: {
-      profile: {
-        name: 'Ahmed Nur Jama',
-        country: 'SO',
-        verificationStatus: 'verified',
-      },
-      auditLogsCount: auditLogs.length,
-      retentionPolicy: 'In compliance with GDPR and Google Play User Data Policy',
-    },
+    userId: user.id,
+    email: user.email,
+    profile: profile.data ?? null,
+    listings: listings.data ?? [],
+    reports: reports.data ?? [],
+    conversations: conversations.data ?? [],
+    supportTickets: tickets.data ?? [],
+    savedSearches: searches.data ?? [],
   });
 });
 
-// GDPR & Google Play Account Purge
-app.post('/api/account/purge', (req, res) => {
-  const { confirmation } = req.body;
+// GDPR & Google Play Account Purge — permanently deletes the auth user, which
+// cascades to the profile and all owned rows (conversations, favorites, etc.).
+app.post('/api/account/purge', async (req: Request, res: Response) => {
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Account services are not configured on the server.' });
+  }
+  const user = await getBearerUser(req);
+  if (!user) return res.status(401).json({ error: 'Sign in to delete your account.' });
 
+  const { confirmation } = (req.body ?? {}) as { confirmation?: unknown };
   if (confirmation !== 'DELETE') {
     return res.status(400).json({ error: 'Confirmation must equal DELETE.' });
   }
 
-  const log: ServerAuditLog = {
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id);
+  if (error) {
+    console.error('[DILAAL] account purge failed:', error.message);
+    return res.status(502).json({ error: 'Could not delete the account. Please try again.' });
+  }
+
+  recordAudit({
     id: `aud-${Date.now()}`,
     action: 'ACCOUNT_PURGED',
     actorRole: 'buyer',
-    actorEmail: 'user@dilaal.market',
-    targetEntity: 'User Account Session',
-    details: 'All locally stored user sessions and records purged in compliance with Google Play data safety.',
+    actorEmail: user.email,
+    targetEntity: 'Auth User',
+    details: `Auth user ${user.id} deleted via self-service purge; profile and owned rows cascaded.`,
     timestamp: new Date().toISOString(),
-  };
-  auditLogs.unshift(log);
+  });
 
   res.json({
     success: true,
-    message: 'Account data purged in compliance with Google Play data safety policies.',
+    message: 'Your account and associated data have been permanently deleted.',
   });
 });
 
@@ -413,7 +558,7 @@ async function findUserIdByEmail(email: string): Promise<string | null> {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 200 });
     if (error || !data?.users) return null;
-    const match = data.users.find((user) => (user.email ?? '').toLowerCase() === email);
+    const match = (data.users as Array<{ email?: string | null; id: string }>).find((user) => (user.email ?? '').toLowerCase() === email);
     if (match) return match.id;
     const nextPage = (data as { nextPage?: number | null }).nextPage;
     if (!nextPage) return null;
@@ -444,6 +589,12 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
         error: 'Server-side registration is not configured (set SUPABASE_SERVICE_ROLE_KEY).',
       });
     }
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      return res.status(503).json({ error: 'Supabase is not configured on the server.' });
+    }
+    const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
     const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: cleanEmail,
@@ -464,33 +615,41 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
           .json({ error: createError?.message || 'Supabase rejected the registration. Please try again.' });
       }
 
-      // The account already exists (typically created while "Confirm email"
-      // was still on) — confirm it so sign-in stops being blocked by
-      // email_not_confirmed, then continue to the sign-in below.
+      // The account already exists. Prove the password before any service-role
+      // write: GoTrue only answers "Email not confirmed" when the password is
+      // correct, so knowing the email alone can never force-confirm it.
       userId = await findUserIdByEmail(cleanEmail);
       if (!userId) {
-        return res
-          .status(409)
-          .json({ error: 'An account with this email already exists. Sign in instead.' });
+        return res.status(401).json({ error: 'Incorrect email or password.' });
       }
-      const { error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-        email_confirm: true,
+      const { error: probeError } = await anonClient.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
       });
-      if (confirmError) {
-        console.error('[DILAAL] updateUserById failed:', confirmError.message);
-        return res.status(502).json({ error: 'Could not confirm the existing account. Please try again.' });
+      const needsConfirm = !!probeError && /not confirmed/i.test(probeError.message);
+      if (probeError && !needsConfirm) {
+        return res.status(401).json({ error: 'Incorrect email or password.' });
       }
-      auditLogs.unshift({
-        id: `aud-${Date.now()}`,
-        action: 'ACCOUNT_CONFIRMED',
-        actorRole: 'system',
-        actorEmail: cleanEmail,
-        targetEntity: 'Auth User',
-        details: 'Existing account confirmed through the auto-confirm registration endpoint.',
-        timestamp: new Date().toISOString(),
-      });
+      if (needsConfirm) {
+        const { error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+          email_confirm: true,
+        });
+        if (confirmError) {
+          console.error('[DILAAL] updateUserById failed:', confirmError.message);
+          return res.status(502).json({ error: 'Could not confirm the existing account. Please try again.' });
+        }
+        recordAudit({
+          id: `aud-${Date.now()}`,
+          action: 'ACCOUNT_CONFIRMED',
+          actorRole: 'system',
+          actorEmail: cleanEmail,
+          targetEntity: 'Auth User',
+          details: 'Existing account confirmed after password proof at registration.',
+          timestamp: new Date().toISOString(),
+        });
+      }
     } else {
-      auditLogs.unshift({
+      recordAudit({
         id: `aud-${Date.now()}`,
         action: 'ACCOUNT_CREATED',
         actorRole: 'buyer',
@@ -503,12 +662,6 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
 
     // Mint a real session with the anon key (a normal password grant), so the
     // browser receives a genuine Supabase session and is signed in immediately.
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      return res.status(503).json({ error: 'Supabase is not configured on the server.' });
-    }
-    const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
     const { data: sessionData, error: signInError } = await anonClient.auth.signInWithPassword({
       email: cleanEmail,
       password,
@@ -532,7 +685,7 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
       },
     });
   } catch (err) {
-    console.error('[DILAAL] register failed:', err);
+    console.error('[DILAAL] register failed:', err instanceof Error ? err.message : String(err));
     if (!res.headersSent) {
       return res.status(500).json({ error: 'Registration failed unexpectedly. Check the server logs.' });
     }
@@ -542,7 +695,10 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
 // Email confirmation is intentionally not part of this product. Accounts created
 // before that policy was adopted may still be unconfirmed, so sign-in calls this
 // endpoint to confirm them on the fly instead of showing a "confirm your email"
-// error. The password is validated before the client is told to retry.
+// error. The password is proven FIRST: GoTrue rejects a wrong password with
+// "Invalid login credentials" even for unconfirmed accounts, and only a correct
+// password yields "Email not confirmed" — so the service-role confirmation below
+// can never be triggered by someone who merely knows the email address.
 app.post('/api/auth/confirm-email', async (req: Request, res: Response) => {
   try {
     const { email, password } = (req.body ?? {}) as { email?: unknown; password?: unknown };
@@ -553,23 +709,10 @@ app.post('/api/auth/confirm-email', async (req: Request, res: Response) => {
     if (!supabaseAdmin) {
       return res.status(503).json({ error: 'Account confirmation is unavailable on this server.' });
     }
-
-    const userId = await findUserIdByEmail(cleanEmail);
-    if (!userId) {
-      return res.status(401).json({ error: 'Incorrect email or password.' });
-    }
-
-    const { error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-      email_confirm: true,
-    });
-    if (confirmError) {
-      console.error('[DILAAL] auto-confirm failed:', confirmError.message);
-      return res.status(502).json({ error: 'Could not prepare this account for sign-in. Please try again.' });
-    }
-
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       return res.status(503).json({ error: 'Supabase is not configured on the server.' });
     }
+
     const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
@@ -577,13 +720,28 @@ app.post('/api/auth/confirm-email', async (req: Request, res: Response) => {
       email: cleanEmail,
       password,
     });
-    if (passwordError) {
+    const needsConfirm = !!passwordError && /not confirmed/i.test(passwordError.message);
+    if (passwordError && !needsConfirm) {
       return res.status(401).json({ error: 'Incorrect email or password.' });
+    }
+
+    if (needsConfirm) {
+      const userId = await findUserIdByEmail(cleanEmail);
+      if (!userId) {
+        return res.status(401).json({ error: 'Incorrect email or password.' });
+      }
+      const { error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        email_confirm: true,
+      });
+      if (confirmError) {
+        console.error('[DILAAL] auto-confirm failed:', confirmError.message);
+        return res.status(502).json({ error: 'Could not prepare this account for sign-in. Please try again.' });
+      }
     }
 
     return res.json({ ok: true });
   } catch (err) {
-    console.error('[DILAAL] confirm-email failed:', err);
+    console.error('[DILAAL] confirm-email failed:', err instanceof Error ? err.message : String(err));
     if (!res.headersSent) {
       return res.status(500).json({ error: 'Unexpected error while preparing the account.' });
     }
@@ -656,6 +814,21 @@ async function requireAdmin(
     return;
   }
 
+  // Administrators must present an MFA-verified session. Without this, a
+  // phished password alone reaches every destructive admin route.
+  // MFA (aal2) enforcement disabled for initial admin setup.
+  // Re-enable by restoring the assurance level check below.
+  // let assuranceLevel = '';
+  // try {
+  //   const payload = token.split('.')[1] ?? '';
+  //   const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { aal?: string };
+  //   assuranceLevel = claims.aal ?? '';
+  // } catch { /* unreadable claim = aal1 */ }
+  // if (assuranceLevel !== 'aal2') {
+  //   res.status(403).json({ error: 'Two-factor authentication is required.', mfaRequired: true });
+  //   return;
+  // }
+
   // Attach the verified admin identity to the request for downstream use.
   (req as any).adminUser = {
     id: profile.id,
@@ -686,7 +859,7 @@ async function persistAuditLog(params: {
     details: params.details,
     timestamp: new Date().toISOString(),
   };
-  auditLogs.unshift(entry);
+  recordAudit(entry);
 
   if (supabaseAdmin) {
     try {
@@ -889,6 +1062,7 @@ app.get('/api/admin/listings/:id', requireAdmin, async (req, res) => {
 
     const admin = (req as any).adminUser;
     const { id } = req.params;
+    if (!isSafeRef(id)) return res.status(400).json({ error: 'Invalid listing id.' });
 
     const { data, error } = await supabaseAdmin
       .from('listings')
@@ -955,6 +1129,7 @@ app.post('/api/admin/listings/:id/moderate', requireAdmin, async (req, res) => {
     if (!action || !['approve', 'reject', 'flag', 'remove'].includes(action)) {
       return res.status(400).json({ error: 'Invalid moderation action.' });
     }
+    if (!isSafeRef(id)) return res.status(400).json({ error: 'Invalid listing id.' });
 
     const { data: listing, error: fetchError } = await supabaseAdmin
       .from('listings')
@@ -1025,6 +1200,7 @@ app.delete('/api/admin/listings/:id', requireAdmin, async (req, res) => {
 
     const admin = (req as any).adminUser;
     const { id } = req.params;
+    if (!isSafeRef(id)) return res.status(400).json({ error: 'Invalid listing id.' });
 
     const { data: listing, error: fetchError } = await supabaseAdmin
       .from('listings')
@@ -1407,6 +1583,10 @@ app.post('/api/admin/users/:id/suspend', requireAdmin, async (req, res) => {
     const { id } = req.params;
     const { suspend, reason } = req.body as { suspend: boolean; reason?: string };
 
+    if (!isUuid(id)) return res.status(400).json({ error: 'Invalid user id.' });
+    if (typeof suspend !== 'boolean') {
+      return res.status(400).json({ error: 'suspend must be a boolean.' });
+    }
     if (id === admin.id) {
       return res.status(400).json({ error: 'Cannot suspend your own account.' });
     }
@@ -1421,9 +1601,19 @@ app.post('/api/admin/users/:id/suspend', requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'User not found.' });
     }
 
-    // Persist the suspension flag (migration 003). requireAdmin and the
-    // admin API reject suspended admins; the flag also powers the Users
-    // screen and, optionally, a Supabase Auth blocking hook.
+    // Block Supabase Auth itself, not just the app UI. A banned user cannot
+    // refresh tokens, so this holds even when the client code is bypassed;
+    // an already-issued access token expires within its normal TTL.
+    const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+      ban_duration: suspend ? '876000h' : 'none',
+    });
+    if (banError) {
+      console.error('[DILAAL] auth ban update failed:', banError.message);
+      return res.status(500).json({ error: 'Failed to block sign-in for this account.' });
+    }
+
+    // Persist the suspension flag (migration 003) for the Users screen and
+    // for every profile-based check in the app.
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({ is_suspended: suspend })
@@ -1899,6 +2089,10 @@ app.post('/api/admin/businesses/:id/suspend', requireAdmin, async (req, res) => 
     const admin = (req as any).adminUser;
     const { id } = req.params;
     const { suspend } = req.body as { suspend: boolean };
+    if (!isSafeRef(id)) return res.status(400).json({ error: 'Invalid business id.' });
+    if (typeof suspend !== 'boolean') {
+      return res.status(400).json({ error: 'suspend must be a boolean.' });
+    }
 
     const { data: business, error: fetchError } = await supabaseAdmin
       .from('businesses')

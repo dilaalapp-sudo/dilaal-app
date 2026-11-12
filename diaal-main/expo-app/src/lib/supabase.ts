@@ -27,7 +27,7 @@ async function writeCachedListings(listings: PropertyListing[]): Promise<void> {
 }
 
 export function formatSupabaseUrl(urlOrRef?: string): string {
-  if (!urlOrRef) return 'https://usrqtgobuylkhwblpjnb.supabase.co';
+  if (!urlOrRef) throw new Error('EXPO_PUBLIC_SUPABASE_URL is required');
   const trimmed = urlOrRef.trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     return trimmed;
@@ -36,17 +36,15 @@ export function formatSupabaseUrl(urlOrRef?: string): string {
 }
 
 export function getValidAnonKey(key?: string): string {
-  const fallback =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzcnF0Z29idXlsa2h3Ymxwam5iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MTQwMjksImV4cCI6MjEwNzM5MDAyOX0.soM9c_X3MhpwOAtAXZMnYR8wKZSD-J3IB7aMipcRKpU';
-  if (!key) return fallback;
+  if (!key) throw new Error('EXPO_PUBLIC_SUPABASE_ANON_KEY is required');
   const trimmed = key.trim();
   if (trimmed.split('.').length === 3 && trimmed.length > 80) {
     return trimmed;
   }
-  return fallback;
+  throw new Error('Invalid EXPO_PUBLIC_SUPABASE_ANON_KEY format');
 }
 
-const rawUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'usrqtgobuylkhwblpjnb';
+const rawUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 export const SUPABASE_URL = formatSupabaseUrl(rawUrl);
 export const SUPABASE_ANON_KEY = getValidAnonKey(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
 
@@ -56,6 +54,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    flowType: 'pkce',
   },
 });
 

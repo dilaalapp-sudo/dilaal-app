@@ -24,19 +24,19 @@ interface StatusBadgeProps {
 // Semantic status mapping. CSS custom properties resolve to different
 // colors in light vs dark mode, so no dark: prefixes are needed here.
 const VARIANT_CLASSES: Record<StatusVariant, string> = {
-  published: 'bg-success-container text-on-success-container',
-  under_review: 'bg-pending-container text-on-pending-container',
-  flagged: 'bg-error-container text-on-error-container',
-  removed: 'bg-error-container text-on-error-container',
-  pending: 'bg-pending-container text-on-pending-container',
-  approved: 'bg-success-container text-on-success-container',
-  rejected: 'bg-error-container text-on-error-container',
-  active: 'bg-success-container text-on-success-container',
-  suspended: 'bg-error-container text-on-error-container',
-  verified: 'bg-success-container text-on-success-container',
-  unverified: 'bg-surface-container text-on-surface-variant',
-  resolved: 'bg-success-container text-on-success-container',
-  dismissed: 'bg-surface-container text-on-surface-variant',
+  published: 'bg-success/12 text-success ring-1 ring-success/20',
+  under_review: 'bg-pending/12 text-pending ring-1 ring-pending/20',
+  flagged: 'bg-error/12 text-error ring-1 ring-error/20',
+  removed: 'bg-error/12 text-error ring-1 ring-error/20',
+  pending: 'bg-pending/12 text-pending ring-1 ring-pending/20',
+  approved: 'bg-success/12 text-success ring-1 ring-success/20',
+  rejected: 'bg-error/12 text-error ring-1 ring-error/20',
+  active: 'bg-success/12 text-success ring-1 ring-success/20',
+  suspended: 'bg-error/12 text-error ring-1 ring-error/20',
+  verified: 'bg-success/12 text-success ring-1 ring-success/20',
+  unverified: 'bg-surface-container-high text-on-surface-variant ring-1 ring-outline-variant/30',
+  resolved: 'bg-success/12 text-success ring-1 ring-success/20',
+  dismissed: 'bg-surface-container-high text-on-surface-variant ring-1 ring-outline-variant/30',
 };
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
@@ -53,7 +53,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
 
   return (
     <span
-      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${badgeClass} ${className}`}
+      className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${badgeClass} ${className}`}
+      role="status"
     >
       {label}
     </span>

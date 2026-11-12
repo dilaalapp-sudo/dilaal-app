@@ -334,6 +334,8 @@ export const TRANSLATIONS: Record<Language, Record<string, string>> = {
     resetLinkInvalid: 'This reset link has expired. Request a new one from the sign-in screen.',
     backToSignIn: 'Back to sign in',
     changePassword: 'Change Password',
+    newMatchFound: 'New match for saved search',
+    matchesYourSavedSearch: 'matches your saved search',
   },
 
   so: {

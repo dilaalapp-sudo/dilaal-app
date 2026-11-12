@@ -25,11 +25,11 @@ const makeStyles = (colors: Palette, isDark: boolean) => {
 
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: page },
-    header: { backgroundColor: '#0f172a', paddingHorizontal: 16, paddingVertical: 22 },
+    header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
     headerInner: { width: '100%', maxWidth: 896, alignSelf: 'center', gap: 4 },
     headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    headerTitle: { fontSize: 20, fontFamily: typography.bold, color: '#ffffff', flexShrink: 1 },
-    headerSub: { fontSize: 12, color: '#94a3b8', lineHeight: 18, maxWidth: 560 },
+    headerTitle: { fontSize: 20, fontFamily: typography.bold, color: text, flexShrink: 1 },
+    headerSub: { fontSize: 12, color: muted, lineHeight: 18, maxWidth: 560 },
     body: { width: '100%', maxWidth: 896, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 24, paddingBottom: 96 },
     tabsRow: {
       flexDirection: 'row',
@@ -171,18 +171,35 @@ export const LegalPrivacyScreen: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [isDeleted, setIsDeleted] = useState(false);
+  const [dataError, setDataError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const handleExportData = async () => {
-    const jsonStr = exportAccountData();
-    await Share.share({
-      title: `dilaal-user-data-export-${new Date().toISOString().split('T')[0]}.json`,
-      message: jsonStr,
-    });
+    setDataError('');
+    setBusy(true);
+    try {
+      const jsonStr = await exportAccountData();
+      await Share.share({
+        title: `dilaal-user-data-export-${new Date().toISOString().split('T')[0]}.json`,
+        message: jsonStr,
+      });
+    } catch {
+      setDataError('Could not export your data. Please try again.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleDeleteAccount = () => {
-    if (deleteConfirmationText !== 'DELETE') return;
-    deleteAccountData();
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmationText !== 'DELETE' || busy) return;
+    setDataError('');
+    setBusy(true);
+    const result = await deleteAccountData();
+    setBusy(false);
+    if (!result.success) {
+      setDataError(result.error || 'Could not delete the account. Please try again.');
+      return;
+    }
     setIsDeleted(true);
     setTimeout(() => {
       setShowDeleteConfirm(false);
@@ -216,7 +233,7 @@ export const LegalPrivacyScreen: React.FC = () => {
         <View style={styles.header}>
           <View style={styles.headerInner}>
             <View style={styles.headerTitleRow}>
-              <Icon name="gavel" size={22} color="#34d399" />
+              <Icon name="gavel" size={22} color="#059669" />
               <Text style={styles.headerTitle}>Legal, Privacy & Compliance Hub</Text>
             </View>
             <Text style={styles.headerSub}>
@@ -345,9 +362,9 @@ export const LegalPrivacyScreen: React.FC = () => {
                     preferences.
                   </Text>
                 </View>
-                <Pressable onPress={() => void handleExportData()} style={styles.exportBtn}>
+                <Pressable onPress={() => void handleExportData()} disabled={busy} style={[styles.exportBtn, busy && { opacity: 0.6 }]}>
                   <Icon name="download" size={14} color="#ffffff" />
-                  <Text style={styles.exportText}>Download Archive</Text>
+                  <Text style={styles.exportText}>{busy ? 'Preparing…' : 'Download Archive'}</Text>
                 </Pressable>
               </View>
 
@@ -412,6 +429,7 @@ export const LegalPrivacyScreen: React.FC = () => {
                     style={styles.confirmInput}
                   />
                 </View>
+                {dataError ? <Text style={styles.dangerText}>{dataError}</Text> : null}
                 <View style={styles.modalActions}>
                   <Pressable
                     onPress={() => setShowDeleteConfirm(false)}
@@ -420,14 +438,14 @@ export const LegalPrivacyScreen: React.FC = () => {
                     <Text style={styles.cancelText}>Cancel</Text>
                   </Pressable>
                   <Pressable
-                    onPress={handleDeleteAccount}
-                    disabled={deleteConfirmationText !== 'DELETE'}
+                    onPress={() => void handleDeleteAccount()}
+                    disabled={deleteConfirmationText !== 'DELETE' || busy}
                     style={[
                       styles.purgeBtn,
-                      deleteConfirmationText === 'DELETE' ? styles.purgeOn : styles.purgeOff,
+                      deleteConfirmationText === 'DELETE' && !busy ? styles.purgeOn : styles.purgeOff,
                     ]}
                   >
-                    <Text style={styles.purgeText}>Purge All Data</Text>
+                    <Text style={styles.purgeText}>{busy ? 'Deleting…' : 'Purge All Data'}</Text>
                   </Pressable>
                 </View>
               </>

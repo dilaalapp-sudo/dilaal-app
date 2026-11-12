@@ -7,6 +7,7 @@ import {
   ScrollView,
   Image,
   StyleSheet,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useApp } from '../context/AppContext';
@@ -22,10 +23,7 @@ export const HomeScreen: React.FC = () => {
   const {
     listings,
     categories,
-    brokers,
     openListingDetails,
-    openBrokerProfile,
-    openChatWithBroker,
     formatPrice,
     favorites,
     toggleFavorite,
@@ -36,11 +34,13 @@ export const HomeScreen: React.FC = () => {
     t,
   } = useApp();
   const colors = useColors();
+  const { width } = useWindowDimensions();
+  const gutter = width < 360 ? 12 : width >= 600 ? 24 : 14;
+  const featuredCardWidth = Math.round(Math.min(Math.max(width * 0.72, 260), 330));
 
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isMatchmakerOpen, setIsMatchmakerOpen] = useState(false);
-  const [isDirectoryOpen, setIsDirectoryOpen] = useState(false);
 
   const accentOf = (cls: string) => (cls.includes('secondary') ? colors.secondary : colors.primary);
 
@@ -68,7 +68,7 @@ export const HomeScreen: React.FC = () => {
         keyboardShouldPersistTaps="handled"
       >
         {/* Search & Filter Bar */}
-        <View style={styles.searchSection}>
+        <View style={[styles.searchSection, { paddingHorizontal: gutter }]}>
           <View
             style={[
               styles.searchBar,
@@ -99,7 +99,7 @@ export const HomeScreen: React.FC = () => {
 
         {/* Category chips */}
         <View style={styles.chipsSection}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.chipsRow, { paddingHorizontal: gutter }]}>
             <Pressable
               onPress={() => handleCategoryClick('')}
               style={[
@@ -179,7 +179,7 @@ export const HomeScreen: React.FC = () => {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.featuredRow}
+              contentContainerStyle={[styles.featuredRow, { paddingHorizontal: gutter }]}
               decelerationRate="fast"
             >
               {filteredFeatured.map((item) => (
@@ -188,6 +188,7 @@ export const HomeScreen: React.FC = () => {
                   onPress={() => openListingDetails(item.id)}
                   style={[
                     styles.featuredCard,
+                    { width: featuredCardWidth },
                     { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant + '33' },
                     shadow.card,
                   ]}
@@ -286,7 +287,7 @@ export const HomeScreen: React.FC = () => {
             <View
               style={[
                 styles.emptyCard,
-                { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant + '4D' },
+                { marginHorizontal: gutter, backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant + '4D' },
               ]}
             >
               <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceContainer }]}>
@@ -318,7 +319,7 @@ export const HomeScreen: React.FC = () => {
         </View>
 
         {/* Matchmaker banner */}
-        <View style={styles.matchSection}>
+        <View style={[styles.matchSection, { paddingHorizontal: gutter }]}>
           <LinearGradient
             colors={['#003527', '#064e3b', '#003625']}
             start={{ x: 0, y: 0.5 }}
@@ -349,118 +350,8 @@ export const HomeScreen: React.FC = () => {
           </LinearGradient>
         </View>
 
-        {/* Broker directory */}
-        <View style={styles.brokerSection}>
-          <SectionHeader
-            title={t('brokerDirectoryTitle', 'Dilaalo Directory')}
-            subtitle={t('brokerDirectorySub', 'Registered brokers on the platform')}
-            accent={colors.secondaryContainer}
-            action={
-              <Pressable onPress={() => setIsDirectoryOpen(true)} style={styles.seeAll}>
-                <Text style={[styles.seeAllText, { color: colors.secondary }]}>
-                  {t('directory', 'Directory')}
-                </Text>
-                <Icon name="chevron_right" size={16} color={colors.secondary} />
-              </Pressable>
-            }
-          />
-
-          {brokers.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.brokerRowStyle}>
-              {brokers.map((broker) => (
-                <View
-                  key={broker.id}
-                  style={[
-                    styles.brokerCard,
-                    { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant + '33' },
-                    shadow.card,
-                  ]}
-                >
-                  <Pressable onPress={() => openBrokerProfile(broker.id)} style={styles.brokerAvatarWrap}>
-                    {broker.avatar ? (
-                      <Image source={{ uri: broker.avatar }} style={styles.brokerAvatar} />
-                    ) : (
-                      <View style={[styles.brokerAvatar, styles.avatarFallback, { backgroundColor: colors.primaryContainer }]}>
-                        <Text style={[styles.avatarInitials, { color: colors.onPrimary }]}>
-                          {broker.name
-                            .split(' ')
-                            .map((n) => n[0])
-                            .join('')
-                            .slice(0, 2)}
-                        </Text>
-                      </View>
-                    )}
-                    {broker.verificationStatus === 'approved' && (
-                      <View style={[styles.verifiedBadge, { backgroundColor: colors.primaryContainer }]}>
-                        <Icon name="verified" size={13} color={colors.secondaryFixed} />
-                      </View>
-                    )}
-                  </Pressable>
-
-                  <Pressable onPress={() => openBrokerProfile(broker.id)}>
-                    <Text style={[styles.brokerName, { color: colors.onSurface }]} numberOfLines={1}>
-                      {broker.name}
-                    </Text>
-                  </Pressable>
-                  {!!broker.coverage && (
-                    <Text style={[styles.brokerCoverage, { color: colors.outline }]} numberOfLines={1}>
-                      {broker.coverage}
-                    </Text>
-                  )}
-
-                  {(broker.rating > 0 || broker.deals > 0) && (
-                    <View style={[styles.ratingPill, { backgroundColor: colors.surfaceContainer }]}>
-                      <Icon name="star" size={13} color={colors.secondaryContainer} />
-                      {broker.rating > 0 && (
-                        <Text style={[styles.ratingText, { color: colors.onSurface }]}>{broker.rating}</Text>
-                      )}
-                      {broker.deals > 0 && (
-                        <Text style={[styles.dealsText, { color: colors.outline }]}>({broker.deals})</Text>
-                      )}
-                    </View>
-                  )}
-
-                  <Pressable
-                    onPress={() => openChatWithBroker(broker.id)}
-                    style={[styles.contactBtn, { backgroundColor: colors.surfaceContainerHigh }]}
-                  >
-                    <Text style={[styles.contactText, { color: colors.primary }]}>{t('contact', 'Contact')}</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </ScrollView>
-          ) : (
-            <View
-              style={[
-                styles.brokerEmpty,
-                { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant + '26' },
-              ]}
-            >
-              <View style={styles.brokerEmptyLeft}>
-                <View style={[styles.brokerEmptyIcon, { backgroundColor: colors.surfaceContainer }]}>
-                  <Icon name="badge" size={20} color={colors.secondary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.brokerEmptyTitle, { color: colors.onSurface }]}>
-                    {t('brokerDirectoryTitle', 'Broker Directory')}
-                  </Text>
-                  <Text style={[styles.brokerEmptyDesc, { color: colors.onSurfaceVariant }]}>
-                    {t('brokerDirectorySub', 'Registered broker profiles will appear here')}
-                  </Text>
-                </View>
-              </View>
-              <Pressable
-                onPress={() => setIsDirectoryOpen(true)}
-                style={[styles.inspectBtn, { backgroundColor: colors.surfaceContainer }]}
-              >
-                <Text style={[styles.inspectText, { color: colors.onSurface }]}>{t('inspect', 'Inspect')}</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-
         {/* Near You */}
-        <View style={styles.nearSection}>
+        <View style={[styles.nearSection, { paddingHorizontal: gutter }]}>
           <SectionHeader
             title={t('nearYou', 'Near You')}
             subtitle={t('nearYouSubLive', 'Latest listings added to the marketplace')}
@@ -594,132 +485,14 @@ export const HomeScreen: React.FC = () => {
       </ScrollView>
 
       {isMatchmakerOpen && <MatchmakerModal onClose={() => setIsMatchmakerOpen(false)} />}
-
-      {isDirectoryOpen && (
-        <View style={styles.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsDirectoryOpen(false)} />
-          <View
-            style={[
-              styles.directoryCard,
-              { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant + '4D' },
-            ]}
-          >
-            <View style={[styles.directoryHeader, { borderBottomColor: colors.surfaceContainer }]}>
-              <View>
-                <Text style={[styles.directoryTitle, { color: colors.onSurface }]}>
-                  {t('brokerDirectoryTitle', 'Dilaalo Directory')}
-                </Text>
-                <Text style={[styles.directorySub, { color: colors.outline }]}>
-                  {t('brokerDirectorySub', 'Registered broker profiles on the platform')}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => setIsDirectoryOpen(false)}
-                style={[styles.directoryClose, { backgroundColor: colors.surfaceContainer }]}
-              >
-                <Icon name="close" size={14} color={colors.outline} />
-              </Pressable>
-            </View>
-
-            <ScrollView contentContainerStyle={{ gap: 12 }} showsVerticalScrollIndicator={false}>
-              {brokers.length === 0 ? (
-                <View
-                  style={[
-                    styles.directoryEmpty,
-                    { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant + '4D' },
-                  ]}
-                >
-                  <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceContainer }]}>
-                    <Icon name="badge" size={24} color={colors.secondary} />
-                  </View>
-                  <Text style={[styles.emptyTitle, { color: colors.onSurface }]}>
-                    {t('noBrokersYet', 'No Brokers Registered Yet')}
-                  </Text>
-                  <Text style={[styles.emptyDesc, { color: colors.onSurfaceVariant }]}>
-                    {t('noBrokersSub', 'Broker profiles will appear in this directory once they are registered.')}
-                  </Text>
-                </View>
-              ) : (
-                brokers.map((b) => (
-                  <View
-                    key={b.id}
-                    style={[
-                      styles.directoryRow,
-                      { backgroundColor: colors.surfaceContainerLow, borderColor: colors.outlineVariant + '33' },
-                    ]}
-                  >
-                    <View style={styles.brokerRow}>
-                      {b.avatar ? (
-                        <Image source={{ uri: b.avatar }} style={styles.directoryAvatar} />
-                      ) : (
-                        <View
-                          style={[
-                            styles.directoryAvatar,
-                            styles.avatarFallback,
-                            { backgroundColor: colors.surfaceContainerHigh },
-                          ]}
-                        >
-                          <Icon name="person" size={22} color={colors.onSurfaceVariant} />
-                        </View>
-                      )}
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.directoryName, { color: colors.onSurface }]} numberOfLines={1}>
-                          {b.name}
-                        </Text>
-                        {(b.licenseNumber || b.verificationStatus === 'approved') && (
-                          <Text style={[styles.directoryMeta, { color: colors.outline }]} numberOfLines={1}>
-                            {[b.licenseNumber, b.verificationStatus === 'approved' ? t('verifiedTag', 'Verified') : null]
-                              .filter(Boolean)
-                              .join(' • ')}
-                          </Text>
-                        )}
-                        {(b.rating > 0 || b.deals > 0) && (
-                          <Text style={[styles.directoryRating, { color: colors.secondary }]}>
-                            {b.rating > 0 ? `★ ${b.rating}` : ''}
-                            {b.deals > 0 ? `  (${b.deals} deals)` : ''}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                    <View style={styles.directoryActions}>
-                      <Pressable
-                        onPress={() => {
-                          setIsDirectoryOpen(false);
-                          openBrokerProfile(b.id);
-                        }}
-                        style={[styles.directoryAction, { backgroundColor: colors.surfaceContainer }]}
-                      >
-                        <Text style={[styles.directoryActionText, { color: colors.onSurface }]}>
-                          {t('navProfile', 'Profile')}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => {
-                          setIsDirectoryOpen(false);
-                          openChatWithBroker(b.id);
-                        }}
-                        style={[styles.directoryAction, { backgroundColor: colors.primaryContainer }]}
-                      >
-                        <Text style={[styles.directoryActionText, { color: colors.onPrimary }]}>
-                          {t('contact', 'Contact')}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { paddingBottom: 40 },
-  searchSection: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
+  content: { paddingBottom: 120 },
+  searchSection: { paddingHorizontal: 14, paddingTop: 16, paddingBottom: 8 },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -858,54 +631,6 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   matchBtnText: { fontSize: 12, fontFamily: typography.bold },
-  brokerSection: { paddingTop: 12, paddingBottom: 8, gap: 10 },
-  brokerRowStyle: { paddingHorizontal: 14, paddingVertical: 4, gap: 10 },
-  brokerCard: { width: 158, padding: 12, borderRadius: 16, borderWidth: 1, alignItems: 'center' },
-  brokerAvatarWrap: { width: 60, height: 60, marginBottom: 8 },
-  brokerAvatar: { width: '100%', height: '100%', borderRadius: 30 },
-  avatarFallback: { alignItems: 'center', justifyContent: 'center' },
-  avatarInitials: { fontSize: 16, fontFamily: typography.bold },
-  verifiedBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brokerName: { fontSize: 12, fontFamily: typography.bold, textAlign: 'center', maxWidth: 130 },
-  brokerCoverage: { fontSize: 10, textAlign: 'center', marginTop: 1, maxWidth: 130 },
-  ratingPill: {
-    marginTop: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-  },
-  ratingText: { fontSize: 12, fontFamily: typography.bold },
-  dealsText: { fontSize: 10 },
-  contactBtn: { marginTop: 10, width: '100%', paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
-  contactText: { fontSize: 12, fontFamily: typography.bold },
-  brokerEmpty: {
-    marginHorizontal: 14,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  brokerEmptyLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  brokerEmptyIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  brokerEmptyTitle: { fontSize: 12, fontFamily: typography.bold },
-  brokerEmptyDesc: { fontSize: 11, marginTop: 1 },
-  inspectBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  inspectText: { fontSize: 12, fontFamily: typography.bold },
   nearSection: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 24, gap: 12 },
   nearList: { gap: 12 },
   nearCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
@@ -950,50 +675,4 @@ const styles = StyleSheet.create({
   },
   nearEmptyTitle: { fontSize: 12, fontFamily: typography.semibold },
   nearEmptyDesc: { fontSize: 11, textAlign: 'center', lineHeight: 16, maxWidth: 300 },
-  modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 14,
-    zIndex: 50,
-  },
-  directoryCard: {
-    width: '100%',
-    maxWidth: 430,
-    maxHeight: '85%',
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 20,
-    gap: 14,
-    ...shadow.floating,
-  },
-  directoryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  directoryTitle: { fontSize: 14, fontFamily: typography.bold },
-  directorySub: { fontSize: 10, marginTop: 1 },
-  directoryClose: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  directoryEmpty: {
-    paddingVertical: 32,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    gap: 8,
-  },
-  directoryRow: { padding: 14, borderRadius: 16, borderWidth: 1, gap: 8 },
-  brokerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  directoryAvatar: { width: 46, height: 46, borderRadius: 23 },
-  directoryName: { fontSize: 12, fontFamily: typography.bold },
-  directoryMeta: { fontSize: 10, marginTop: 1 },
-  directoryRating: { fontSize: 11, fontFamily: typography.bold, marginTop: 2 },
-  directoryActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  directoryAction: { flex: 1, paddingVertical: 8, borderRadius: 12, alignItems: 'center' },
-  directoryActionText: { fontSize: 12, fontFamily: typography.bold },
 });

@@ -26,7 +26,7 @@ function writeCachedListings(listings: PropertyListing[]): void {
 }
 
 export function formatSupabaseUrl(urlOrRef?: string): string {
-  if (!urlOrRef) return 'https://usrqtgobuylkhwblpjnb.supabase.co';
+  if (!urlOrRef) throw new Error('VITE_SUPABASE_URL is required');
   const trimmed = urlOrRef.trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     return trimmed;
@@ -35,17 +35,15 @@ export function formatSupabaseUrl(urlOrRef?: string): string {
 }
 
 export function getValidAnonKey(key?: string): string {
-  const fallback =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzcnF0Z29idXlsa2h3Ymxwam5iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MTQwMjksImV4cCI6MjEwNzM5MDAyOX0.soM9c_X3MhpwOAtAXZMnYR8wKZSD-J3IB7aMipcRKpU';
-  if (!key) return fallback;
+  if (!key) throw new Error('VITE_SUPABASE_ANON_KEY is required');
   const trimmed = key.trim();
   if (trimmed.split('.').length === 3 && trimmed.length > 80) {
     return trimmed;
   }
-  return fallback;
+  throw new Error('Invalid VITE_SUPABASE_ANON_KEY format');
 }
 
-const rawUrl = import.meta.env.VITE_SUPABASE_URL || 'usrqtgobuylkhwblpjnb';
+const rawUrl = import.meta.env.VITE_SUPABASE_URL;
 export const SUPABASE_URL = formatSupabaseUrl(rawUrl);
 export const SUPABASE_ANON_KEY = getValidAnonKey(import.meta.env.VITE_SUPABASE_ANON_KEY);
 

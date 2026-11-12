@@ -56,19 +56,22 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     verifyingRef.current = true;
     try {
       const result = await verifyAdminAccess();
-      if (result.ok) {
+      if ('ok' in result && result.ok) {
         setAdmin(result.admin);
         setDeniedMessage(null);
         setStatus('authenticated');
+        return;
+      }
+      setAdmin(null);
+      if ('reason' in result && result.reason === 'unauthenticated') {
+        setDeniedMessage(null);
+        setStatus('unauthenticated');
+      } else if ('error' in result) {
+        setDeniedMessage(result.error);
+        setStatus('denied');
       } else {
-        setAdmin(null);
-        if (result.reason === 'unauthenticated') {
-          setDeniedMessage(null);
-          setStatus('unauthenticated');
-        } else {
-          setDeniedMessage(result.error);
-          setStatus('denied');
-        }
+        setDeniedMessage('Access denied.');
+        setStatus('denied');
       }
     } finally {
       verifyingRef.current = false;
@@ -96,9 +99,11 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const signIn = useCallback(
     async (email: string, password: string): Promise<AdminSignInResult> => {
       const result = await signInAsAdmin(email, password);
-      if (result.ok) {
+      if ('ok' in result && result.ok) {
         await runVerification();
-      } else if (result.reason === 'not_admin' || result.reason === 'suspended') {
+        return result;
+      }
+      if ('reason' in result && (result.reason === 'not_admin' || result.reason === 'suspended')) {
         setDeniedMessage(result.error);
         setStatus('denied');
       }
