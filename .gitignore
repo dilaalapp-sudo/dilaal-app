@@ -31,6 +31,9 @@ diaal-main/expo-app/android/
 diaal-main/expo-app/ios/
 local.properties
 
+# Built release APKs (exceed GitHub 100 MB file size limit)
+*.apk
+
 # OS / editor
 .DS_Store
 Thumbs.db
